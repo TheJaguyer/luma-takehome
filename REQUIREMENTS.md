@@ -3,7 +3,8 @@
 > Status: **Ready to build.** All questions in ASSUMPTIONS.md are answered,
 > [USER_FLOWS.md](USER_FLOWS.md) has walked all seven flows end to end — which settled most of
 > what was open here and amended a dozen assumptions along the way — and **the stack is chosen**
-> (see *The stack*, at the end of this document).
+> (see *The stack*, at the end of this document — an ideal stack for growth, and a 1-day Docker
+> Compose stack that is a strict subset of it).
 >
 > **Scope for the build is set** in *Part 5 — Build scope*.
 
@@ -57,8 +58,11 @@
   **only an approver** can confirm. Setup posts the per-SKU lookup base URL in the channel.
 - [x] **Stack, host, database, and object storage — settled.** See *The stack* at the end of this
   document, which answers the constraints table row by row. **No Google service account needed**
-  now that Drive is cut. Headline: **TypeScript + Slack Bolt on Railway, Postgres via Prisma,
-  images in S3, Anthropic for idea drafting, one always-on process doing its own cron and polling.**
+  now that Drive is cut. Headline: **TypeScript + Slack Bolt, Postgres via Prisma, Anthropic for
+  idea drafting — on the day, one Docker Compose file (`bot`, a single-replica `worker`, `lookup`,
+  Postgres, Garage, Caddy) that runs on Hetzner or an AWS VM; for growth, the same image on ECS
+  Fargate with RDS, S3, CloudFront and pg-boss.** *(Revised: this read "on Railway, images in S3,
+  one always-on process" before the two-stack pass.)*
 - [x] **Prioritised for the ~1-day build — see *Part 5 — Build scope*.** Every confirmed item is
   marked in / next / out, with the reasoning and, for deferred items, the trigger that would
   bring them forward. The spine prices out at roughly the whole day, so everything beyond it
@@ -295,6 +299,8 @@ answer is available rather than remembered.
 | **Image resizing / thumbnails** | The full-size approved image is enough to start (#4a) | The web developer asking for smaller variants, or page weight becoming a complaint |
 | **Scheduled seasonal swaps** — *us* deciding when a season starts | Mostly dissolved: the site asks for a theme and owns the calendar (#4b, Flow 7), so there is no scheduler, nothing to expire, and no SKU left short | The web developer asking for the lookup to switch itself — i.e. wanting us to own the calendar after all |
 | **Tracking discontinued products** | Not our problem to solve; archive covers the clutter (#6) | Archive being used as a proxy for discontinued — someone asking "which of these are actually dead?" |
+| **Tenancy model** — multi-tenant SaaS (distributed Slack OAuth, row-level scoping, pooled AI keys metered per tenant) or one deployment per customer (the Compose unit as the product, a fleet around it) | Out of scope for this project. Neither is locked in; the right answer depends on who the second customer is — small brands who will not run anything, or larger ones who want isolation and their own keys. The ideal stack is chosen to foreclose neither (*The stack*) | **A second customer committing** |
+| **Worker system beyond pg-boss** — a dedicated queue (SQS), a separate queue database, per-tenant rate limits and fair scheduling | Out of scope for this project. The ideal stack's pg-boss coordinates several workers on the Postgres that already exists, which is enough for polling a few hundred generations a drop. Anything sturdier is a question about many more users, not this team | **Queue load competing with product queries** on the database, or one customer's drop measurably delaying another's generations |
 
 ### Cut, not deferred
 
@@ -312,13 +318,20 @@ the design and still do not get built today.
 
 ### How the day was priced
 
-Estimated at AI-assisted speed, with the stack above: skeleton, Prisma schema, Railway and S3
-wiring, Slack app ~1.5h · CSV import ~1h · source photos into storage ~0.5h · idea drafting ~0.75h ·
-idea review ~1.25h · generation, contact sheet and candidate review ~2h · publish and lookup ~0.75h ·
-status ~0.75h · CSV export ~0.4h · setup ~0.5h · deploy and end-to-end debugging with real
-generations ~1.5h. **That is roughly the entire day before anything optional.** So the real
-question was never what to add — it was what comes out of the spine to make room, which is why the
-two additions below were chosen deliberately and the rest were deferred with triggers.
+Estimated at AI-assisted speed, with the 1-day stack (*The stack*, below): skeleton, Prisma schema,
+Slack app ~1.5h · Compose file — `bot`/`worker`/`lookup` entrypoints, `migrate`, Postgres, Garage
+bucket and public read, Caddy TLS and routing ~0.75h · CSV import ~1h · source photos into storage
+~0.5h · idea drafting ~0.75h · idea review ~1.25h · generation, contact sheet and candidate review
+~2h · publish and lookup ~0.75h · status ~0.75h · CSV export ~0.4h · setup ~0.5h · deploy to a VM
+and end-to-end debugging with real generations ~1.5h. **That is more than the entire day before
+anything optional.** So the real question was never what to add — it was what comes out of the
+spine to make room, which is why the two additions below were chosen deliberately and the rest were
+deferred with triggers.
+
+**The Docker shape made the day longer, and that is accepted.** The earlier plan on Railway got
+HTTPS, managed Postgres and deploys nearly free; the portable Compose file pays roughly 45–60
+minutes for them instead. Rather than cut an addition to fit, **the day is knowingly worked long**.
+The cut is still decided in advance, by value: see *If the day runs behind*, below.
 
 ### In — the spine
 
@@ -343,6 +356,11 @@ removes something the brief names as a deliverable.
 | **Nudges and the drop's daily post** (Flow 4, Steps 6 and 8) | ~1h | #5a already promoted nudges from an extra to a **dependency**: a SKU at 1-of-2 approved is blocked on nobody and appears in no queue anywhere else, so nothing but a nudge surfaces it. Cutting it would contradict reasoning already written down. Cheap because it reuses the status renderer. **Known demo cost:** a daily cron needs a manual trigger to show inside an 8-minute video |
 | **Campaign themes end-to-end** (Flow 7, Steps 3–4; #3b, #4b) | ~1h | Maya names the Q4 campaign explicitly, and the lookup's theme contract is better exercised with two sets in it than with one. Additive later, but the API shape is easier to get right with a real second set than with a placeholder |
 
+**If the day runs behind, themes are the first cut** — nudges are not, because #5a made them a
+dependency. Cut this way, the lookup still returns `theme` and `served_theme` (~10 min), so the API
+shape stays settled and themes move to *Next* with the trigger *the site asking for
+`?theme=holiday`, or Q4 campaign briefs starting*.
+
 ### Next — designed, not built today
 
 These are fully specified in USER_FLOWS and ASSUMPTIONS. They are deferred by the day, not by the
@@ -359,7 +377,8 @@ design, and each carries the signal that should pull it forward.
 | **Budget warning thresholds** | #13 | Spend is *visible* in v1 (per generation, per drop, in status). Thresholds add alerting to a number already in front of everyone | Spend surprising someone — which the spend figures in status will show before a threshold would |
 | **Spend comparisons week-over-week / month-over-month** | 4, #13 | At a handful of drops a year, a calendar comparison carries less signal than the per-drop breakdown, which v1 has | A second drop completing, so there is something to compare against |
 
-**If the day goes better than priced**, the order to pull from is: **replace source photo** (Flow 6)
+**If the day goes better than priced** — unlikely, now that the day is knowingly long — the order to
+pull from is: **replace source photo** (Flow 6)
 first — it is the only fix for the `needs a source photo` flag v1 ships — then **photographer
 upload** (Flow 5, which shares its gesture), then **import change-review**, then **`/shots
 approvers`**.
@@ -374,7 +393,8 @@ fires; an item in Part 4 is built when the world changes.
 
 - Deployed and publicly reachable; no localhost demos.
 - Secrets stay out of git (`.env.local`).
-- Survives restarts: request state is stored persistently.
+- Survives restarts: request state is stored persistently. On the 1-day stack that means container and
+  host restarts, not losing the VM (see *What this costs*).
 - Keeps working as the catalog grows 10× (see APPROACH.md on unit economics).
 - Persistent database is the system of record (ASSUMPTIONS #3a).
 
@@ -402,22 +422,106 @@ scheduler that owns a campaign calendar (#4b), or any storefront credentials.
 
 ## The stack
 
-Chosen against the constraints table above, under one binding limit: **~1 working day**, with the
-result deployed and publicly reachable. Where a choice has a cost, the cost is named here rather
-than discovered in APPROACH.md later.
+There are **two stacks, and one is a strict subset of the other.**
 
-| Layer | Choice | Why this one |
+- **The ideal stack** is what this product runs on if it grows and ships to other customers:
+  managed AWS, sized to be operated rather than babysat.
+- **The 1-day stack** is what gets built and demoed: one self-contained Docker Compose file that
+  runs unchanged on a personally managed Hetzner server or on a single AWS VM.
+
+**The rule that joins them: getting from the 1-day stack to the ideal one only ever *adds* pieces
+or *changes configuration* — it never swaps code.** That is held at the level of interfaces rather
+than products: the code talks to storage over the S3 API, to the database over a connection string,
+to logs over stdout, and ships as one container image. Garage becoming S3 or a Postgres container
+becoming RDS is an environment-variable change. This is what lets APPROACH.md's *what I'd do next*
+be a migration path rather than a rewrite, and it means every gap between the two stacks can carry
+a trigger, like everything else deferred in this document.
+
+The rule has a cost, and it is accepted: **the ideal stack is limited to choices the day can also
+hold.** It cannot pick a different language, or a managed service with no local equivalent, without
+breaking the subset.
+
+### The ideal stack, and how the day grows into it
+
+| Layer | Ideal stack | 1-day stack | How the day becomes the ideal |
+|---|---|---|---|
+| Language + Slack framework | **TypeScript + Slack Bolt for JS** | Same | — |
+| Processes | **Three ECS services from one image:** `bot`, `worker`, `lookup` | **Three Compose services from one image:** `bot`, `worker` (pinned to one replica), `lookup`, plus a one-shot `migrate` | One Compose service → one ECS service |
+| Container runtime | **ECS on Fargate**, images in **ECR**, `bot` and `lookup` behind an ALB | **Docker Compose** on one VM, images in **GHCR** | Same image, different registry and scheduler |
+| Edge + TLS | **CloudFront** in front of images (cache forever) and the lookup (cache for seconds); ACM certificates | **Caddy** — automatic Let's Encrypt TLS, routes `/slack/*` → `bot`, `/products/*` → `lookup` (Flow 7's `GET /products/{SKU}/images`), `/images/*` → Garage, and sets the cache headers | The caching split (#4) moves from a Caddy rule to a CloudFront behaviour |
+| Database | **RDS Postgres** — backups, failover and patching are AWS's job | **Postgres container** with a named volume | `DATABASE_URL` |
+| Data access | **Prisma** | Same | — |
+| Object storage | **S3**, served through CloudFront | **Garage** (S3-compatible) in its own container. Same write-once key convention on both: `images/<sku>/<image_id>.jpg` | S3 endpoint and credentials |
+| Background work | **pg-boss** — jobs as rows in Postgres, `SKIP LOCKED` so each job goes to exactly one worker, retries, backoff, and cron that fires once across many workers | **In-process reconciliation loop + `node-cron`** in the single `worker` replica — a ~15s tick that selects every non-terminal generation row and polls Luma | Additive: add pg-boss, then raise the worker's replica count |
+| Image work | **`sharp`** | Same | — |
+| LLM | **Anthropic (Claude)** | Same | — |
+| Generation | **Luma `uni-1` image edit**, `uni-1-max` selectable (#14) | Same | — |
+| Secrets | **Secrets Manager**, injected into ECS tasks | `.env` on the VM, never in git | Where the variables come from, not what they are |
+| Infra as code | **Terraform** | `compose.yaml` checked in | Terraform describes the same three services |
+| Build + deploy | **GitHub Actions** → ECR → ECS service update | **GitHub Actions** → GHCR → `ssh` and `docker compose pull && docker compose up -d` | Same pipeline, different last step |
+| Observability | Structured JSON logs to **CloudWatch** | Structured JSON logs to stdout, read with `docker compose logs` | stdout is the interface on both |
+| Install model | **Neutral on tenancy** (see Part 4) | Single workspace at runtime; manifest checked in, settings keyed by `team_id` | Nothing yet — deliberately |
+
+**Why the layers shared by both stacks were chosen** (unchanged from the earlier single-stack plan):
+
+- **TypeScript + Bolt for JS** — Slack's reference implementation, so Block Kit, modals,
+  `chat.update` and file events are the best-documented path. `ack()` is automatic in action
+  handlers, which makes "acknowledge in 3s, work after" the default shape rather than something to
+  remember.
+- **Prisma** — ~12 related tables (products, source-photo versions, drops, ideas and options,
+  themes, rounds, candidates, images, approvers, settings, events). `schema.prisma` is both the
+  migration source and a readable statement of the data model.
+- **Postgres** — request state must survive restarts, and it is the system of record (#3a).
+- **Immutable image URLs come from a key convention, not code** — write-once keys and
+  `Cache-Control: immutable`. A redeploy cannot touch an image.
+- **`sharp`** — libvips-backed compositing for the numbered 2×2 contact sheet (Flow 3, Step 2).
+- **Anthropic** — idea drafting and expansion (#3, #9); on the reviewers' provider list; cents per
+  batch, never on a hot path.
+- **Luma `uni-1`** — fixed by the brief and by #14.
+
+**Why managed AWS for the ideal stack:** backups, failover and patching stop being ours; it is on
+the reviewers' provider list (`.env.example`); and it is the least-argued answer to a customer's
+security review. CloudFront turns "the lookup must never fail and is short-cached, image URLs cache
+forever" from a promise the app keeps into an edge rule.
+
+**Why tenancy-neutral:** whether this ships as multi-tenant SaaS or one deployment per customer is
+out of scope for this project (Part 4). The ideal stack is chosen so that it forecloses neither:
+`team_id`-keyed settings, the checked-in manifest, S3-API storage with room for a tenant prefix,
+and containers as the unit of deployment all work under both.
+
+### The 1-day stack: one Compose file
+
+| Service | Role | Replicas |
 |---|---|---|
-| Language + Slack framework | **TypeScript + Slack Bolt for JS** | Bolt-JS is Slack's reference implementation, so Block Kit, modals, `chat.update` and file events are the best-documented path. `ack()` is automatic in action handlers, which makes "acknowledge in 3s, work after" the default shape rather than something to remember |
-| Host | **Railway**, one always-on container | The flows need a process that stays alive (generation polling, cron). Every free tier that spins down on idle fails two requirements at once: cold starts blow Slack's 3s window, and a stopped container runs no nudges. Railway gives a stable public HTTPS domain with no keep-alive configuration |
-| Database | **Postgres** (Railway managed, `DATABASE_URL` injected) | Request state must survive restarts. Managed in-project removes a decision and a class of local-vs-deployed failure |
-| Data access | **Prisma** | ~12 related tables (products, source-photo versions, drops, ideas and options, themes, rounds, candidates, images, approvers, settings, events). `schema.prisma` is both the migration source and a readable statement of the data model |
-| Object storage | **AWS S3**, `us-west-2` | On the reviewers' provider list (`.env.example`). Immutable public URLs come from a write-once key convention (`images/<sku>/<image_id>.jpg`, `Cache-Control: immutable`) rather than from code. Keeps the app stateless: a redeploy cannot touch an image |
-| Image work | **`sharp`** | libvips-backed compositing for the numbered 2×2 contact sheet (Flow 3, Step 2) |
-| LLM | **Anthropic (Claude)** | Idea drafting and expansion (#3, #9). On the reviewers' provider list; cents per batch, never on a hot path |
-| Generation | **Luma `uni-1` image edit**, `uni-1-max` selectable (#14) | Fixed by the brief and by #14 |
-| Background work | **`node-cron` + an in-process reconciliation loop** | Scheduled jobs for the daily drop post, nudges and stuck-item detection; a ~15s loop that selects every non-terminal generation row and polls Luma |
-| Install model | **Single workspace at runtime, multi-tenant in shape** | One bot token; reviewers are invited to a demo workspace (the brief blesses this). The app manifest is checked in, and settings are keyed by `team_id` from day one |
+| `caddy` | TLS and routing — the only service with public ports | 1 |
+| `bot` | Slack events, actions, modals, slash commands. Stateless | 1 (could be more) |
+| `worker` | Luma reconciliation loop, drop daily post, nudges, stuck-item detection | **Exactly 1** |
+| `lookup` | Read-only per-SKU lookup (Flow 7). Stateless | 1 (could be more) |
+| `migrate` | `prisma migrate deploy`, runs to completion before the app services start | one-shot |
+| `postgres` | System of record | 1 |
+| `garage` | S3-compatible image store; approved images are public read-only through Caddy | 1 |
+
+**Deploy targets.** The same `compose.yaml` and the same image run on either target; the only
+per-target inputs are a `.env` and a DNS name for Caddy to get a certificate for.
+
+- **Hetzner** — a personally managed server with Docker installed.
+- **AWS** — a single EC2 or Lightsail VM in `us-west-2` running the same Compose file. Not ECS:
+  that is the ideal stack, and on the day it would make "deploy" mean something different on each
+  target.
+
+**Why the process split is paid for on the day (~30–45 min).** It maps one-to-one onto ECS
+services, and it relocates the single-instance problem instead of hiding it. The old shape — one
+container — could not scale at all, because a second copy would double-poll Luma and post the
+daily message twice. Now only the `worker` has that property, and it is a stated replica count
+rather than an implicit assumption. `bot` and `lookup` scale freely today. *The one seam worth
+naming* in earlier drafts of this document — the lookup's different availability profile — is
+already cut.
+
+**Why the images live inside the Compose file.** One `docker compose up` on any VM is the whole
+product; the only outside dependencies are API keys. That removes the earlier design's worst
+review-time failure (S3 credentials pointing at an empty bucket). The cost is durability, and it is
+accepted because **the demo deployment does not need to live long or be as enduring as a real
+one**: images and the database share a single disk on a single box.
 
 ### What was rejected, and what it would have cost
 
@@ -426,51 +530,61 @@ revisit honestly — and because this table is the raw material for APPROACH.md'
 
 | Decision | Rejected | Why it lost | What would bring it back |
 |---|---|---|---|
-| Language | **Python + Bolt-Python + FastAPI** | Near parity, and a *better* answer for #16's embedded provenance — `exiftool` bindings and XMP are more idiomatic there. Lost on the mechanical risks that dominate a one-day build: async Python plus a background poller plus Bolt has more ways to be subtly wrong, and deploy packaging is heavier | Provenance metadata becoming a real requirement rather than a recorded promise |
+| Relationship between the stacks | **Two independent designs**, each honest to its own limit | Would let the ideal stack be chosen with no day in mind, and make a stronger *road not taken*. Lost because it turns *what next* into a rewrite, and invites the question of why build something you plan to throw away | The growth design needing something the day genuinely cannot hold — a different language, or a managed service with no local stand-in |
+| Language | **Python + Bolt-Python + FastAPI** | Near parity, and a *better* answer for #16's embedded provenance — `exiftool` bindings and XMP are more idiomatic there. Lost on the mechanical risks that dominate a one-day build: async Python plus a background poller plus Bolt has more ways to be subtly wrong. Under the subset rule, losing on the day means losing for the ideal stack too | Provenance metadata becoming a real requirement rather than a recorded promise — and even then, `exiftool` installed in the Node image is the cheaper answer |
 | Language | **TypeScript + Next.js on Vercel** | The reflexive choice, and it fights three requirements at once: no long-lived process for generation polling, coarse cron, and a bolted-on queue. It also reintroduces a web-app shape this design explicitly does not need | Nothing. This is the shape the abandoned dashboard had |
-| Host | **Fly.io** | `fly.toml` is explicit infra-as-code and demos well. Lost on two traps: `auto_stop_machines` defaults to on, which would kill cron and the generation poller between Slack requests, and Fly Postgres is self-operated unless Neon or Supabase is attached separately | Needing region control, or outgrowing one container |
-| Host | **Render** | Same shape as Railway. Lost because the free web tier spins down on idle — fatal for both cron and Slack's 3s window — and its free Postgres expires after 30 days, which is a live-URL risk exactly when reviewers are looking | — |
-| Host | **AWS directly** (App Runner/ECS + RDS) | Tempting for symmetry with S3, since the reviewers have AWS accounts. Lost on the day budget: IAM, VPC, task definitions and a load balancer is a half-day that buys nothing the flows asked for. Using AWS *for storage only* keeps the credential-list benefit without the infrastructure tax | Someone requiring everything inside one cloud account |
+| 1-day host | **Railway**, one always-on container | The previous choice, and still the fastest path to a public HTTPS URL with managed Postgres. Lost because it is a platform, not a portable target: it cannot run on a personally managed Hetzner server, and nothing about it carries into the ideal stack | Wanting the shortest possible deploy with no VM to look after, and no need for a second target |
+| 1-day host | **Fly.io** | `fly.toml` is explicit infra-as-code and demos well. Lost on two traps: `auto_stop_machines` defaults to on, which would kill cron and the worker between Slack requests, and Fly Postgres is self-operated unless something is attached separately. Like Railway, it is not the Hetzner target | Needing region control without running a VM |
+| 1-day host | **Render** | Free web tier spins down on idle — fatal for cron and Slack's 3s window — and free Postgres expires after 30 days, a live-URL risk exactly when reviewers are looking | — |
+| 1-day host | **ECS directly** (the ideal stack on day one) | IAM, VPC, task definitions and a load balancer is a half-day that buys nothing the flows asked for, and it makes the Hetzner target a separate deploy story | Someone requiring the demo to run inside one AWS account's managed services |
+| Ideal platform | **Kubernetes** (EKS, or k3s on Hetzner) with Helm charts | Would keep both deploy targets alive into production and avoid lock-in, and Hetzner is far cheaper to run. Lost because it is a lot of machinery for a bot, a worker and a lookup — the clearest possible case of buying machinery before a trigger asks for it — and on Hetzner, Postgres HA and backups become ours | Hetzner mattering as a *production* target, not just a demo one — e.g. a customer who requires EU hosting on their own infrastructure |
+| 1-day processes | **One `app` container**, modules split for later | Fastest day and simplest to debug live. Lost because the split then happens during the move to ECS — a packaging change, a small break of the subset rule — and the double-post problem stays until then | Nothing, now that Compose makes the split cheap |
 | Data access | **Drizzle** | Lighter, faster, SQL-shaped, genuinely good. Lost because ~12 related tables means more hand-written SQL and more verbose relation queries, landing on the most time-pressured hours | — |
 | Data access | **`pg` + hand-written SQL** | Total control, nothing hidden. Lost because hand-rolled migrations and row mapping across a dozen tables is a lot of low-value code, and the likeliest source of a late runtime bug | — |
-| Storage | **Railway volume, app-served bytes** | The strongest rejected option. It deletes an entire class of review-time failure (no S3 credentials to misconfigure) and the URL is just as immutable — it is simply our domain. Lost on durability (one replica, one host) and on coupling the thing that must never fail, the lookup, to the thing that is bandwidth-heavy. That coupling is theoretical at this scale and is exactly what worsens at 10× | S3 credentials proving fragile in review. Storage sits behind a thin interface, so this is an afternoon |
+| 1-day storage | **External S3 from day one** (AWS S3, or Hetzner Object Storage) | The strongest rejected option. Images would outlive the VM, and the day would match the ideal stack product-for-product. Lost because it keeps a credentials-and-bucket-policy failure mode on every target, for durability a short-lived demo does not need | The demo deployment needing to outlive its VM — e.g. the team actually using it past review |
+| 1-day storage | **MinIO** | The best-known S3-compatible server. Lost because its community edition stopped shipping maintained images in late 2025 | — |
+| 1-day storage | **SeaweedFS** | Capable and S3-compatible, but more system than a demo image store needs | Garage's S3 coverage proving too thin for something the code needs |
 | Storage | **Bytes in Postgres** | Simplest possible thing, no new dependency. Lost because it bloats backups and puts a database read on the page-render path | Nothing |
-| Background work | **BullMQ + Redis**, or **pg-boss** | Real retries, backoff, delayed jobs, and a job lock preventing double-execution. Lost because durability already comes free from the reconciliation-loop shape, and the job lock only pays off with more than one instance. Buying resilience for a load peaking at ~150 images over several days | **Running more than one instance** — at which point the double-post problem is real and pg-boss is the cheaper of the two, since it needs no second datastore |
-| Install model | **Distributed OAuth, multi-workspace** | Would have *demonstrated* the approver role's "any team can install this" (#1) rather than asserting it. Lost because the cost is not the OAuth dance but threading a team-scoped token through every Slack call in the codebase — 2–3 hours showing nothing about the product judgement being evaluated, plus a new failure mode mid-demo | A second team actually wanting it. Settings are keyed by `team_id` from day one so this stays an afternoon |
+| Ideal worker coordination | **SQS + EventBridge Scheduler** | Fully managed and scales without limit; scheduling outside the process means a worker being down does not skip a daily post. Lost because neither runs in the Compose file — the subset breaks, or it needs LocalStack on Hetzner — and it is more IAM and Terraform to coordinate polling a few hundred jobs | Worker load outgrowing Postgres (Part 4) |
+| Ideal worker coordination | **BullMQ + Redis** | Mature, fast, good tooling. Lost because it adds a second datastore to run on both stacks, where pg-boss uses the one that already exists | — |
+| Install model | **Distributed OAuth, multi-workspace** | Would have *demonstrated* the approver role's "any team can install this" (#1) rather than asserting it. Lost because the cost is threading a team-scoped token through every Slack call — 2–3 hours showing nothing about the product judgement being evaluated. Now also a tenancy decision, which is out of scope (Part 4) | A second customer committing |
 
-### Why there is no queue
+### Why there is no queue on the day
 
 The obvious reading of "30–60s generations, several in parallel, survives restarts" is *add a job
-queue*. It is not needed, because **the durable state already exists**: Flow 3 records a row per
-candidate carrying its Luma job id, model, round, cost and source photo version. If the poller is
-written as a reconciliation loop — *find every generation not in a terminal state and ask Luma
-about it* — then crash recovery is not a feature, it is what the next tick does anyway. Redis and
-a worker service would buy retry semantics for a load that peaks at roughly 150 images spread over
-a few days.
+queue*. The day does not need one, because **the durable state already exists**: Flow 3 records a
+row per candidate carrying its Luma job id, model, round, cost and source photo version. If the
+worker is written as a reconciliation loop — *find every generation not in a terminal state and ask
+Luma about it* — then crash recovery is not a feature, it is what the next tick does anyway.
+
+The ideal stack adds **pg-boss**, and the reason is narrow: it is not durability (the loop already
+has that), it is **coordination** — letting more than one `worker` run without two of them claiming
+the same job or posting the same daily message. The reconciliation loop stays the source of truth;
+pg-boss only decides *who* works each job. It runs identically against the Compose Postgres and RDS,
+so it is a pure addition.
+
+**Trigger to add it:** the single `worker` falling behind — generations sitting in a non-terminal
+state longer than one polling interval past Luma's completion — or needing the worker to survive a
+host failure. Anything more robust than pg-boss is out of scope (Part 4).
 
 ### What this costs, stated up front
 
-- **One process is a single point of failure, and it cannot scale horizontally.** A second
-  instance would double-poll Luma and post the drop's daily message twice. Correct sizing for six
-  people and a handful of drops a year (#2b); the first thing to change at 300 SKUs with
-  overlapping drops. This belongs in APPROACH.md's "what breaks first under pressure".
-- **Retries and backoff are hand-rolled**, not framework-provided.
-- **S3 credentials are a review-time failure mode.** Images are written to our bucket; reviewers
-  supplying their own AWS keys would point at an empty bucket and previously written images would
-  404. Storage sits behind a thin interface so the swap is recoverable, and APPROACH.md says so.
+- **The 1-day deployment is one disk on one box.** Postgres and every image share a volume on a
+  single VM; losing the VM loses the demo. Accepted because the demo does not need to endure.
+  APPROACH.md should say so, and name the ideal stack's RDS + S3 as the answer.
+- **Hetzner is a demo and dev target, not a production path.** The ideal stack is AWS. Running this
+  for real on Hetzner means operating Postgres backups and HA ourselves, which is the Kubernetes row
+  above.
+- **The `worker` is single-replica, and nothing enforces that but a number in `compose.yaml`.** A
+  second copy double-polls Luma and double-posts the daily message. `bot` and `lookup` do not have
+  this problem. This belongs in APPROACH.md's *what breaks first under pressure*.
+- **Retries and backoff are hand-rolled** on the day, not framework-provided, until pg-boss arrives.
+- **More moving parts to own on the day** than a platform host: TLS, a DNS name per target, Garage's
+  bucket setup and public read, a one-shot migration step. That is where the day's extra time goes.
 - **IPTC/C2PA provenance (#16) is the weakest spot in the Node ecosystem.** `sharp` writes EXIF and
   XMP; IPTC support is thin. The realistic implementation is an XMP digital-source-type marker, or
-  shelling out to `exiftool`. Recorded because #16 promised embedded metadata, and the promise is
-  cheaper in Python than in Node.
+  `exiftool` installed in the image and shelled out to. Recorded because #16 promised embedded
+  metadata, and the promise is cheaper in Python than in Node.
 - **`team_id` does nothing today.** It is a column and a habit, not a working multi-tenant system:
   the "any team can install this" claim behind the approver role (#1) stays plausible rather than
-  demonstrated. Distribution is an afternoon of threading team-scoped tokens through every Slack
-  call, not a redesign — but it is an afternoon nobody has spent yet.
-
-### The one seam worth naming
-
-The **per-SKU lookup is the only component with a different availability profile** from everything
-else: it sits on the page-render path, must never fail, and is short-cached, while the rest of the
-system is human-paced and can afford a restart. Today it is a route in the same process, which is
-the right call for a day. It is also the obvious thing to pull out first — it shares only the
-database, reads and never writes, and the image bytes it points at already live in S3.
+  demonstrated, and which tenancy model it would grow into is deliberately undecided (Part 4).
