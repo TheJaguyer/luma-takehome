@@ -36,6 +36,21 @@
 | 6 | Replacing a product's source photo | Anyone | **Settled** |
 | 7 | The site consuming approved images | The web developer | **Settled** |
 
+> **What of this gets built in the ~1 day** (see REQUIREMENTS *Part 5 — Build scope*). Every flow
+> here stays settled; the day is what is short, not the design.
+>
+> | Flow | In the ~1-day build |
+> |---|---|
+> | 0 Setup | **Partly** — invite, name the approver, house style, post the lookup URL. `/shots approvers` and the channel move are next |
+> | 1 Import | **Partly** — new SKUs, new ideas, drop, summary, idempotent re-import, needs-a-photo flag. Change-review is next, and the summary must say so |
+> | 2 Idea review | **Yes** — minus multi-product grouping (Step 6) and archive (Skip stays) |
+> | 3 Generation and approval | **Yes** — including force-approve. Photographer uploads (Step 7) are next |
+> | 4 Status and nudges | **Yes** — three zoom levels, stuck list, nudges, drop self-reporting. Thresholds and period-over-period comparisons are next |
+> | 5 Photographer's shot | **Next** |
+> | 6 Replace source photo | **Next** — first in line if the day runs ahead, because v1 ships the flag that only this flow can clear |
+> | 7 The site consuming images | **Yes** — including themes |
+
+
 ---
 
 # Flow 0 — Install and set up the bot in a channel

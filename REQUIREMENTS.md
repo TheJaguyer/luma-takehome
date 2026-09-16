@@ -1,12 +1,11 @@
 # Requirements
 
-> Status: **Nearly ready for system design.** All questions in ASSUMPTIONS.md are answered, and
+> Status: **Ready to build.** All questions in ASSUMPTIONS.md are answered,
 > [USER_FLOWS.md](USER_FLOWS.md) has walked all seven flows end to end — which settled most of
-> what was open here and amended a dozen assumptions along the way.
+> what was open here and amended a dozen assumptions along the way — and **the stack is chosen**
+> (see *The stack*, at the end of this document).
 >
-> **Two things remain, and they belong together:** the stack and hosting choice, and the
-> in / out / next prioritisation for the ~1-day build — what is buildable in a day depends on
-> what it is built on.
+> **Scope for the build is set** in *Part 5 — Build scope*.
 
 ## TODO before system design
 
@@ -56,11 +55,14 @@
   only the two questions with no safe default — who decides, and the house style. Everything
   else takes a documented default. A second invite proposes moving the review channel, which
   **only an approver** can confirm. Setup posts the per-SKU lookup base URL in the channel.
-- [ ] **Stack, host, database, and object storage.** See *What the seven flows require of the stack*
-  at the end of this document — the constraints are collected there. **No Google service account
-  needed** now that Drive is cut.
-- [ ] **Prioritize for the ~1-day build:** mark each confirmed item as in / out / next. Depends on
-  the stack choice — what is buildable in a day is a function of what it is built on.
+- [x] **Stack, host, database, and object storage — settled.** See *The stack* at the end of this
+  document, which answers the constraints table row by row. **No Google service account needed**
+  now that Drive is cut. Headline: **TypeScript + Slack Bolt on Railway, Postgres via Prisma,
+  images in S3, Anthropic for idea drafting, one always-on process doing its own cron and polling.**
+- [x] **Prioritised for the ~1-day build — see *Part 5 — Build scope*.** Every confirmed item is
+  marked in / next / out, with the reasoning and, for deferred items, the trigger that would
+  bring them forward. The spine prices out at roughly the whole day, so everything beyond it
+  displaces debugging time rather than adding to the total.
 
 ### C. Validate with real Luma generations
 > **No longer blocking.** We proceed on #14a as written: `uni-1` image edit reproduces the
@@ -302,6 +304,72 @@ No trigger, because these are not waiting for anything.
 |---|---|
 | **Google Drive copy of approved images** | Storage was always canonical; the copy bought nothing the storage layer did not already do, and cost a service account, OAuth, folder config, and a copy-vs-canonical failure mode. Its human-facing job is covered by "request approved images from the bot", above |
 
+## Part 5 — Build scope for the ~1-day build
+
+Part 4 is about what this product does not need. **This section is about what one day can hold**,
+which is a different question with a different answer: several things below are load-bearing to
+the design and still do not get built today.
+
+### How the day was priced
+
+Estimated at AI-assisted speed, with the stack above: skeleton, Prisma schema, Railway and S3
+wiring, Slack app ~1.5h · CSV import ~1h · source photos into storage ~0.5h · idea drafting ~0.75h ·
+idea review ~1.25h · generation, contact sheet and candidate review ~2h · publish and lookup ~0.75h ·
+status ~0.75h · CSV export ~0.4h · setup ~0.5h · deploy and end-to-end debugging with real
+generations ~1.5h. **That is roughly the entire day before anything optional.** So the real
+question was never what to add — it was what comes out of the spine to make room, which is why the
+two additions below were chosen deliberately and the rest were deferred with triggers.
+
+### In — the spine
+
+Each of these is here because removing it either breaks *CSV in → approved images live*, or
+removes something the brief names as a deliverable.
+
+| Item | Flow | Why it cannot come out |
+|---|---|---|
+| Setup: invite → name the approver, ask the house style, post the lookup base URL | 0 | The only two questions with no safe default (#1, #3b). Everything else takes a documented default |
+| CSV import by Slack file drop: tolerant validation, new SKUs, named drop, summary, idempotent re-import, **needs a source photo** flag | 1 | The brief requires a fresh-CSV entry point, demoed in the video |
+| Idea review: one card per product, approve / `[Edit…]` modal / skip, **collapse in place**, priority flag | 2 | The idea gate is the spend gate (#3). Nothing downstream is justified without it |
+| Generation and candidate review: Luma `uni-1`, numbered 2×2 contact sheet, `[Compare with source]`, approve per image, reject per round, `[Generate 4 more]` with a required sentence, **force-approve with a required sentence** | 3 | The heart of the product. Force-approve stays because it is ~40 minutes and is the most distinctive judgement in the design (#1) |
+| Per-SKU lookup: immutable URLs, approval order, primary first, `origin`, never fails | 7 | Approval = publication. Without this, "done" is a claim rather than a fact |
+| `/shots status` at all three zoom levels, with spend and the stuck list | 4 | Maya's ask, verbatim |
+| Updated CSV export with status and image-link columns | 3, 7 | Promoted to load-bearing when Drive was cut (#4) — the only bulk way to hand someone every approved link |
+| Event log written alongside product state | 4, #1, #16 | Nearly free: inserts beside work already happening, and both #1 and #16 promised it |
+
+### In — the two deliberate additions
+
+| Item | Cost | Why it earned an hour |
+|---|---|---|
+| **Nudges and the drop's daily post** (Flow 4, Steps 6 and 8) | ~1h | #5a already promoted nudges from an extra to a **dependency**: a SKU at 1-of-2 approved is blocked on nobody and appears in no queue anywhere else, so nothing but a nudge surfaces it. Cutting it would contradict reasoning already written down. Cheap because it reuses the status renderer. **Known demo cost:** a daily cron needs a manual trigger to show inside an 8-minute video |
+| **Campaign themes end-to-end** (Flow 7, Steps 3–4; #3b, #4b) | ~1h | Maya names the Q4 campaign explicitly, and the lookup's theme contract is better exercised with two sets in it than with one. Additive later, but the API shape is easier to get right with a real second set than with a placeholder |
+
+### Next — designed, not built today
+
+These are fully specified in USER_FLOWS and ASSUMPTIONS. They are deferred by the day, not by the
+design, and each carries the signal that should pull it forward.
+
+| Item | Flow / entry | Why it is not in the day | Trigger to build it |
+|---|---|---|---|
+| **Import change-review** — pending detail changes with bulk accept, photo changes individually | 1, #12 | Next month's drop is *new* products, which the spine already handles. The photo-change path also drags in source-photo versioning from Flow 6, so it is not the 1.25h it looks like | **Anyone editing an existing row in the sheet and re-exporting.** Until then a re-import creates new SKUs and new ideas and leaves existing rows alone — which the import summary must say out loud, rather than leaving it to be discovered |
+| **Photographer upload** | 5, #2 | An escape hatch from the AI path the product is about, and the brief's photographer is the bottleneck this replaces | A human shot actually needing to enter review — a freelancer engagement continuing alongside the tool |
+| **Replace source photo** | 6, #11 | Shares its gesture with Flow 5, so the two are cheaper together than apart — which is also why neither is half-built | **A product whose photo is bad or missing.** The `needs a source photo` flag ships in v1, so the demand for this is visible from day one; the flag is a to-do list with no button yet, which is an honest gap rather than a hidden one |
+| **Multi-product grouping** | 2, 3, #10 | By its own conclusion it "helps the site more than the queue" — featured SKUs are not even counted toward done | Someone asking for a styled set, or `image_ref` fidelity testing landing (Part 4) |
+| **`/shots approvers`, and the channel-move proposal** | 0, #1, #2a | Setup names an approver, which covers the common case. Changing the set matters on week four, not hour one | The approver being away, or a second channel invite happening |
+| **Archive / unarchive actions** | 1, 2, #6, #8 | Skip covers "not now" in review; archive matters at 300 SKUs, not 40 | The queue carrying products nobody intends to shoot |
+| **Budget warning thresholds** | #13 | Spend is *visible* in v1 (per generation, per drop, in status). Thresholds add alerting to a number already in front of everyone | Spend surprising someone — which the spend figures in status will show before a threshold would |
+| **Spend comparisons week-over-week / month-over-month** | 4, #13 | At a handful of drops a year, a calendar comparison carries less signal than the per-drop breakdown, which v1 has | A second drop completing, so there is something to compare against |
+
+**If the day goes better than priced**, the order to pull from is: **replace source photo** (Flow 6)
+first — it is the only fix for the `needs a source photo` flag v1 ships — then **photographer
+upload** (Flow 5, which shares its gesture), then **import change-review**, then **`/shots
+approvers`**.
+
+### Out
+
+Everything in Part 4 stays out, unchanged and for the reasons given there. Part 4's triggers are
+about the product; Part 5's are about the day. An item deferred here is built when its trigger
+fires; an item in Part 4 is built when the world changes.
+
 ## Non-functional requirements
 
 - Deployed and publicly reachable; no localhost demos.
@@ -328,3 +396,62 @@ Collected from USER_FLOWS.md, as the input to the stack decision rather than a d
 
 **Explicitly not needed:** a web application, user accounts, a Google service account, a
 scheduler that owns a campaign calendar (#4b), or any storefront credentials.
+
+
+---
+
+## The stack
+
+Chosen against the constraints table above, under one binding limit: **~1 working day**, with the
+result deployed and publicly reachable. Where a choice has a cost, the cost is named here rather
+than discovered in APPROACH.md later.
+
+| Layer | Choice | Why this one |
+|---|---|---|
+| Language + Slack framework | **TypeScript + Slack Bolt for JS** | Bolt-JS is Slack's reference implementation, so Block Kit, modals, `chat.update` and file events are the best-documented path. `ack()` is automatic in action handlers, which makes "acknowledge in 3s, work after" the default shape rather than something to remember |
+| Host | **Railway**, one always-on container | The flows need a process that stays alive (generation polling, cron). Every free tier that spins down on idle fails two requirements at once: cold starts blow Slack's 3s window, and a stopped container runs no nudges. Railway gives a stable public HTTPS domain with no keep-alive configuration |
+| Database | **Postgres** (Railway managed, `DATABASE_URL` injected) | Request state must survive restarts. Managed in-project removes a decision and a class of local-vs-deployed failure |
+| Data access | **Prisma** | ~12 related tables (products, source-photo versions, drops, ideas and options, themes, rounds, candidates, images, approvers, settings, events). `schema.prisma` is both the migration source and a readable statement of the data model |
+| Object storage | **AWS S3**, `us-west-2` | On the reviewers' provider list (`.env.example`). Immutable public URLs come from a write-once key convention (`images/<sku>/<image_id>.jpg`, `Cache-Control: immutable`) rather than from code. Keeps the app stateless: a redeploy cannot touch an image |
+| Image work | **`sharp`** | libvips-backed compositing for the numbered 2×2 contact sheet (Flow 3, Step 2) |
+| LLM | **Anthropic (Claude)** | Idea drafting and expansion (#3, #9). On the reviewers' provider list; cents per batch, never on a hot path |
+| Generation | **Luma `uni-1` image edit**, `uni-1-max` selectable (#14) | Fixed by the brief and by #14 |
+| Background work | **`node-cron` + an in-process reconciliation loop** | Scheduled jobs for the daily drop post, nudges and stuck-item detection; a ~15s loop that selects every non-terminal generation row and polls Luma |
+| Install model | **Single workspace at runtime, multi-tenant in shape** | One bot token; reviewers are invited to a demo workspace (the brief blesses this). The app manifest is checked in, and settings are keyed by `team_id` from day one |
+
+### Why there is no queue
+
+The obvious reading of "30–60s generations, several in parallel, survives restarts" is *add a job
+queue*. It is not needed, because **the durable state already exists**: Flow 3 records a row per
+candidate carrying its Luma job id, model, round, cost and source photo version. If the poller is
+written as a reconciliation loop — *find every generation not in a terminal state and ask Luma
+about it* — then crash recovery is not a feature, it is what the next tick does anyway. Redis and
+a worker service would buy retry semantics for a load that peaks at roughly 150 images spread over
+a few days.
+
+### What this costs, stated up front
+
+- **One process is a single point of failure, and it cannot scale horizontally.** A second
+  instance would double-poll Luma and post the drop's daily message twice. Correct sizing for six
+  people and a handful of drops a year (#2b); the first thing to change at 300 SKUs with
+  overlapping drops. This belongs in APPROACH.md's "what breaks first under pressure".
+- **Retries and backoff are hand-rolled**, not framework-provided.
+- **S3 credentials are a review-time failure mode.** Images are written to our bucket; reviewers
+  supplying their own AWS keys would point at an empty bucket and previously written images would
+  404. Storage sits behind a thin interface so the swap is recoverable, and APPROACH.md says so.
+- **IPTC/C2PA provenance (#16) is the weakest spot in the Node ecosystem.** `sharp` writes EXIF and
+  XMP; IPTC support is thin. The realistic implementation is an XMP digital-source-type marker, or
+  shelling out to `exiftool`. Recorded because #16 promised embedded metadata, and the promise is
+  cheaper in Python than in Node.
+- **`team_id` does nothing today.** It is a column and a habit, not a working multi-tenant system:
+  the "any team can install this" claim behind the approver role (#1) stays plausible rather than
+  demonstrated. Distribution is an afternoon of threading team-scoped tokens through every Slack
+  call, not a redesign — but it is an afternoon nobody has spent yet.
+
+### The one seam worth naming
+
+The **per-SKU lookup is the only component with a different availability profile** from everything
+else: it sits on the page-render path, must never fail, and is short-cached, while the rest of the
+system is human-paced and can afford a restart. Today it is a route in the same process, which is
+the right call for a day. It is also the obvious thing to pull out first — it shares only the
+database, reads and never writes, and the image bytes it points at already live in S3.

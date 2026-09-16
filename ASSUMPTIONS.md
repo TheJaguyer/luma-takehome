@@ -11,6 +11,14 @@ Questions I'd ask the team if I could, the assumption I proceeded on instead, an
 > because the reason an assumption failed is worth more than the assumption, and an assumption
 > quietly rewritten to match the outcome teaches nobody anything.
 
+> **On build scope (added once the stack and the day were priced).** Nothing below has been
+> withdrawn or softened. Several of these assumptions describe behaviour that is **designed and
+> specified but not built in the ~1-day version**, and those entries now carry a **[v1 scope]**
+> note saying so and pointing at *Part 5 — Build scope* in
+> [REQUIREMENTS.md](REQUIREMENTS.md), where each deferral has a trigger. The distinction matters:
+> an assumption that was wrong gets revised in place with its original reasoning kept; an
+> assumption that was right but did not fit in a day gets a scope note and nothing else.
+
 Format for each entry:
 - **Question:** what I'd ask
 - **Assumption:** what I went with
@@ -39,6 +47,10 @@ Format for each entry:
     - The set is **never empty** (with no approver, every approval is a force-approve and this distinction becomes decoration), only an approver can change it, and a workspace admin is the escape hatch if none is reachable.
     - Pending work waits on *an approver*, never on a person, so changing the role mid-drop moves nothing and loses nothing.
   - **Cost:** the 40-product drop needs ~40 idea approvals *and* up to 40 image approvals from the person who also runs half of everything else. That makes **batch idea review load-bearing, not a nice-to-have** (#3): a screen of drafted ideas has to clear in a handful of taps, not forty. This is the first place the design strains under the drop, and the first thing to watch after it ships.
+  - **[v1 scope]** Setup names an approver and force-approve works as described. **`/shots approvers`
+    and the channel-move proposal are deferred** — changing the approver set matters on week four,
+    not in the first hour, and the escape hatch (a workspace admin) needs no code. See REQUIREMENTS
+    Part 5.
 
 ### 2. Which tool does Ellie actually live in on her phone: Slack or Gmail?
 - **Assumption:** **Slack is primary.** Email was only in the loop because the photographer was an outside party. With AI generation, the photographer is usually unnecessary, so email drops out of the approval path.
@@ -48,6 +60,11 @@ Format for each entry:
   - **Photographer escape hatch:** the Slack app accepts human-shot photos uploaded against a request. A freelancer can be added to the channel when one is used, and their shots go through the same approval flow as AI candidates.
   - **Email as a digest only (to be designed):** a daily email, or one at a frequency the user picks, summarizing pending decisions, built from the same data. It's a summary and nudge, not a place to act, so Slack stays the single place decisions happen.
   - **[revised — USER_FLOWS Flow 4] Deferred, and the reason is that Slack grew the feature email was for.** This line was written when the only way to learn anything was to go and look. Flow 4 changed that inside Slack: a drop posts its own progress daily, and nudges surface stuck items unasked. Email was going to be the thing that comes to you, and now something already does. **What it still uniquely covers:** the person who has stopped opening Slack — Ellie genuinely away, which is the scenario force-approve (#1) exists for. Every push this flow builds lands in a channel and reaches nobody who is not looking at it. **Signal to build it:** items being force-approved repeatedly, which means the channel is not reaching the person who should be deciding.
+  - **[v1 scope]** The **photographer escape hatch is deferred** (Flow 5, REQUIREMENTS Part 5). It is
+    an escape hatch from the AI path this product exists to replace, and it shares its gesture with
+    Flow 6, so the two are cheaper built together than half-built separately. Nothing about the
+    design changes; there is simply no upload button in v1. **Trigger:** a human shot actually
+    needing to enter review.
 
 #### 2a. Which Slack channel do candidate images land in?
 - **Assumption:** A **dedicated review channel** (e.g. `#shot-reviews`), separate from the team's general channel. Candidates post there in the open, the team can weigh in before Ellie decides, and Ellie approves in-channel. Approvals and live-image changes (#4) post to the same channel.
@@ -192,6 +209,10 @@ Format for each entry:
   - **[resolved — #4b, USER_FLOWS Flow 7] Archived products keep being served.** Archive is *our* workflow state, not a publishing switch: the site decides independently what it lists (#4b), so a product hidden from Ellie's queue but still on the site must not lose its images. Archiving never breaks a live page.
   - **[revised — USER_FLOWS Flow 1, Step 4] Archive means "not right now," not "dead."** A team may archive a product that is only seasonally available, then want it back to shoot under a new theme. So **a SKU appearing in an import is unarchived**, named in the import summary (not just counted) with a one-tap undo, and returns with its full history. The undo sits in the same message as the campaign question, which is what makes it safe: drafting has not started, so a stale export that resurrects thirty products costs one tap to reverse and nothing to spend.
     - **Watch:** an unarchived seasonal product may already have 2+ approved images, so it reads as **done** (#5a) even though it was re-imported precisely because it needs new themed shots. It appears in no "needs work" count. That is why the summary names these products rather than folding them into a number — and it is #3b's tension with #5a firing again.
+  - **[v1 scope]** The **archive and unarchive actions are deferred** (REQUIREMENTS Part 5). Idea
+    review's **Skip** covers "not right now" for a 40-product drop; archive earns its place at 300
+    SKUs, when the queue starts carrying products nobody intends to shoot. The data model keeps the
+    archived flag, so turning the actions on later adds no migration.
 
 ### 7. Are "El:" notes Ellie's own, and should they carry more weight (priority, cautions)?
 - **Assumption:** "El:" probably marks Ellie's notes, but **no note gets special automatic treatment.** All notes are context: they inform AI idea and prompt drafting and are shown alongside items in review. **Priority is an explicit setting**, not something inferred from note text.
@@ -232,6 +253,10 @@ Format for each entry:
   - Approval must confirm **every** featured product looks right, not just the primary.
   - **Unverified:** how faithfully featured (reference) products are reproduced. Test with real generations before relying on it.
   - ~~Open: does a multi-product image count toward each featured SKU's 2–3 approved images?~~ **[resolved — USER_FLOWS Flow 3, Step 8] The primary SKU only.** Featured SKUs get the image as a **related** image: attached and findable, but not counted toward their 2 and never primary in their lookup. The rule is that **a product is only ever counted on images it was the source for**, because the primary's photo is the edit `source` and is what the model actually preserves (#14), while `image_ref` fidelity is unverified — and now untested by choice (#14a). Counting otherwise would let a SKU reach **done** (#5a) on a shot where its own colour or shape is subtly wrong, with nothing downstream to catch it. **Consequence:** grouping helps the site more than the queue, which is the honest trade — #10's case for grouping was always about how styled sets get used. **Revisit** if `image_ref` fidelity proves good: counting for every SKU becomes a setting, not a redesign, since the data model already relates an image to several products.
+- **[v1 scope]** **Grouping is deferred** (REQUIREMENTS Part 5). This entry's own conclusion is why:
+  featured SKUs are not counted toward done, so grouping "helps the site more than the queue." The
+  image-to-products relation ships in the schema, so the deferral is a missing button rather than a
+  missing model. **Trigger:** someone asking for a styled set, or `image_ref` fidelity testing landing.
 
 ### 11. Notes about the source photo or past shoots ("photo slightly underexposed?", "came out too shiny in last shoot"): act on them?
 - **Assumption:** No automatic action. These notes are context like any other (#7): "too shiny" informs idea drafting, and "underexposed?" is shown during review. The fix for a bad input is a simple **replace source photo** action per SKU.
@@ -242,6 +267,11 @@ Format for each entry:
   - Source photos are versioned. Future generations use the latest; originals are kept, and each candidate records which source version it came from — including its **dimensions**, which matters because output size comes from the source (#15). A non-square upload is accepted with a plain warning about the effect rather than refused or silently padded: refusing the only photo someone has makes a tool people work around, and altering a product photo without saying so is the invisible change this design exists to prevent. Robust image intake is recorded as future work.
   - A first round may come out dim for a bad source photo. We accept a few cents and one review as the cost of discovering it.
   - **Out of scope / future:** automatic source-photo review (exposure/quality checks) and AI touch-up before generation.
+  - **[v1 scope]** **Replace source photo is deferred** (Flow 6, REQUIREMENTS Part 5) — and this is the
+    deferral with the most visible edge, so it is worth stating plainly. v1 *does* ship the
+    **needs a source photo** flag from #12, which means the system can tell you a product is blocked
+    on a bad or missing photo and cannot yet offer you the button that fixes it. That is an honest
+    gap rather than a hidden one, and it is first in line if the day goes better than priced.
 
 ### 12. Will future exports really have the same columns? What if a row changes between exports (new idea, new photo URL)?
 - **Assumption:** Exports will mostly keep the same columns but may carry quirks, and the team will keep editing the sheet out of habit for a while. Imports **bring in changes, but never overwrite existing product data without a person confirming.**
@@ -265,6 +295,13 @@ Format for each entry:
   - **[revised — USER_FLOWS Flow 1, Step 6] Pending changes bulk-accept, except photos.** Detail changes (price, name, category, colour, material, notes) can be accepted together: wrong is wrong, but it is text in a database and nothing goes live. **Photo changes are always individual**, because a new photo creates a source version and can send approved images to re-review — the exact path to "the wrong image was live for three weeks." The two are counted and presented separately so a bulk accept can never quietly include a photo, and a SKU changing both splits across the two groups. Every accept is attributed, bulk or not. Rationale for having a bulk path at all: a thirty-card list is what makes people tap through without reading, which costs the review its entire purpose.
   - **[revised — USER_FLOWS Flow 1, Steps 3–5] Re-import is the repair path, and it is safe.** Unchanged rows are no-ops and SKUs match by key, so **re-dropping the same file is idempotent**. That matters because "fix the bad rows in the sheet and export again" is what a person actually does, and it keeps the sheet authoritative through the transition (#3a) with no per-row editing UI in Slack — which would write the correction to the database but not the sheet, so the next export would re-break the same row.
   - Import summary in Slack, e.g., "12 new · 3 changes to review · 2 new ideas · 2 rows rejected."
+  - **[v1 scope]** **Change-review is deferred** (REQUIREMENTS Part 5): v1 creates new SKUs, applies
+    new shot ideas, and leaves existing rows alone. Next month's drop is *new* products, which the
+    spine handles; and the photo-change half of this entry depends on source-photo versioning from
+    Flow 6, which is also deferred — so building half of it would mean building the half that cannot
+    stand alone. **What this obliges v1 to do:** the import summary must say out loud that changes to
+    existing products were not applied. A silent no-op here is precisely the "nobody can tell you
+    which requests are done" failure in a new costume.
 
 ## Budget and quality
 
@@ -281,6 +318,13 @@ Format for each entry:
   - **Budget warnings (settings):** optional weekly, monthly, and/or annual thresholds. Approaching or crossing one posts a Slack warning to the team. Nothing is paused.
   - **Spend reporting:** spend appears in status reports (#5) and per batch. A spend report compares this week against previous weeks and this month against previous months (and so on), available on demand and in scheduled reports.
   - No hard spending cap.
+  - **[v1 scope]** **Warning thresholds and week-over-week / month-over-month comparisons are
+    deferred** (REQUIREMENTS Part 5). Spend itself is not: cost is recorded per generation and shown
+    per product, per drop and overall in `/shots status`. Thresholds add *alerting* to a number
+    already in front of everyone, and at a handful of drops a year (#2b) a calendar comparison has
+    less signal than the per-drop breakdown v1 ships. **Trigger:** a second drop completing, so there
+    is something to compare against — or spend surprising someone, which the visible figures would
+    show first.
 
 ### 14. What counts as "matching the shot idea", and how faithful must the product be (exact color, exact shape)?
 - **Assumption:** The product must be **faithful**: same shape, color, finish, and proportions as the source photo. Only the scene changes. **Ellie's (or a force-approver's) approval is the definition of "matches."** No automated quality screening.
