@@ -52,7 +52,18 @@ Format for each entry:
   - No DM approval path to build. One surface, one set of interactions.
   - **Cost:** Ellie's rejections are public. That matches how it works today, so it isn't new — but it argues against demanding a written reason on reject (see REQUIREMENTS Step 5).
   - **[revised — USER_FLOWS Flow 0]** The channel is not configured, it is *invited*: whichever channel the bot is invited to becomes the review channel. A later invite elsewhere **proposes moving** reviews there, and only an approver can confirm the move — relocating the queue is the one action that can make an in-flight drop vanish from under the people watching it, so it gets the same gate as approving. Moves are announced in both channels and pending items come along.
-  - Open: does **idea** review (#3, #9) share this channel or get its own? Same volume question, text instead of images.
+  - ~~Open: does **idea** review (#3, #9) share this channel or get its own?~~ **[resolved — USER_FLOWS Flow 2, Step 0] They share one channel.** See #2b for the reasoning, which turns on how rarely drops happen.
+
+#### 2b. How often does a CSV drop or new batch actually happen?
+- **Question:** is this a steady flow of work, or a few bursts a year?
+- **Assumption:** **A handful of times a year.** The load is peaky: busy for a few days during a drop, quiet for months between.
+- **Why:** The brief says Ellie rebuilds the wishlist "two or three times a year," and describes the 40-product drop as an event rather than a routine. The 16 existing shot ideas are "some months old," which is the same cadence seen from the other side.
+- **What it changed:**
+  - **Idea review and candidate review share one channel** (resolves the open question in #2a). At a few drops a year, the channel reads as a chronological record of each one — CSV dropped → ideas on SKUs → candidates → approvals → quiet → repeat. Splitting ideas into their own channel would break that narrative in half to solve crowding that exists on a handful of days a year, and would give the team a second channel to mute wrongly.
+  - The design targets **peak load, not steady load**: survive a burst of ~37 idea cards and ~150 candidate images over a few days, then go quiet. Nothing needs to be optimised for sustained throughput.
+  - Decided idea cards **collapse in place** once approved, so the burst shrinks as it is worked rather than sitting above the candidates forever.
+  - **This assumption is load-bearing for the single-channel decision.** If drops become frequent, or the catalog scales to 300 and rounds overlap, revisit it — a separate `#shot-ideas` channel is a configuration change, not a redesign. Recorded as a "next" item.
+  - Related: it also means burst spend, not monthly run-rate, is the shape of the budget question (#13).
 
 ### 3. Who writes shot ideas for the 40-product drop, and when?
 - **Assumption:** **AI drafts, Ellie picks, and only then do images get made.** For any product without a shot idea, the system drafts 2–3 ideas from the product data (name, category, color, material, notes). The team approves, edits, or writes its own in Slack. No image is generated until an idea is approved.
@@ -60,6 +71,7 @@ Format for each entry:
 - **What it changed:**
   - Adds an **idea-approval stage** before image generation: two decision points per product (idea, then images).
   - The idea step must be batch-friendly (e.g., many products reviewed in one pass), or it doubles Ellie's load on a 40-product drop.
+  - **[revised — USER_FLOWS Flow 2] "Batch-friendly" turned out not to mean "fewer cards."** The review is **one card per product, posted at once, with nothing pre-selected**. The volume is a *reading* cost that only the approver pays, one tap at a time; nobody else owes an opinion on every product, and the cards' real job is being individually addressable so the team can weigh in on the few they care about. The designs that collapse the scroll — a stepper, or approve-by-exception — also collapse the place where everyone else participates, and approve-by-exception is the one shape where a pure AI guess for a blank product can go live on inertia, which is exactly what this gate exists to prevent. What keeps it navigable instead: priority posts first (#7), and **a decided card collapses in place** to a one-line receipt, so the channel shrinks as the queue is worked.
   - Existing human-written ideas still get reviewed so vague ones can be clarified (see #9), but they start pre-filled.
 
 #### 3a. The CSV/sheet is legacy record-keeping, not the system of record going forward

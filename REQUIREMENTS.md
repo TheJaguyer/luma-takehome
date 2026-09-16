@@ -28,10 +28,10 @@
   - _(The photo-URL refinement is settled and folded into #12.)_
 
 ### B. Resolve remaining REQUIREMENTS decisions
-- [ ] **Step 1:** Slack capture of ad-hoc ideas (e.g., turning a Slack message into a request)? What does batch idea review look like on a phone for a 40-product drop? **Highest-risk open item** — #1 routes both approval stages through Ellie, so the drop only works if a screen of ideas clears in a few taps.
+- [x] **Step 1 — settled in USER_FLOWS Flow 2.** Batch idea review is **one card per product, posted at once**, nothing pre-selected: the 37-card volume is a *reading* cost only the approver pays one tap at a time, while the cards' real job is being individually addressable so anyone can weigh in on the few they care about. Decided cards collapse in place, priority posts first. **Slack capture of ad-hoc ideas is cut** (Part 4) — most lost ideas were for products that now get drafted options anyway, and the sheet's Shot Idea column still reaches the system on the next import.
 - [ ] **Step 2:** Queue model beyond the priority flag (continuous vs. batched per import; ordering).
 - [ ] **Step 4:** Candidate storage and naming (SKU/request-based); photographer uploads enter the same flow (#2).
-- [ ] **Step 5:** Approval UX inside Slack (channel settled in #2a):
+- [ ] **Step 5:** Approval UX inside Slack (channel settled in #2a; idea review shares it, #2b):
   - Presenting multiple candidates in one message on a phone.
   - Reject flow: reason or not (#2a argues against requiring one).
   - "Almost — make it warmer" refinement.
@@ -110,9 +110,7 @@ Settled (ASSUMPTIONS #3, #3a):
 
 - Existing ideas (ASSUMPTIONS #9) are expanded into 2–3 options: option 1 is a faithful rewrite of the original in the standard detailed format; options 2–3 are variations. The raw original is shown for context.
 
-Still open: Slack capture of ad-hoc ideas (B); what the batch idea-review UX looks like — **load-bearing**, since #1 puts idea approval on Ellie too (~40 idea approvals for the drop).
-
-**Decision:** _Partially settled; see above_
+**Decision (USER_FLOWS Flow 2):** **A + C + D.** **B (Slack capture) is cut** — see Part 4. Batch idea review is one card per product, posted at once, with nothing pre-selected; the card carries the raw sheet idea, the notes verbatim, and any earlier comments, and `[Edit…]` opens the option's full text in a modal where saving also approves.
 
 ### Step 2. Building the wishlist
 **Today:** Two or three times a year, Ellie rebuilds the list from the sheet, Slack, and her inbox.
@@ -267,6 +265,8 @@ Explicitly deferred, with the reason recorded in ASSUMPTIONS.md.
 | Item | Why deferred | Source |
 |---|---|---|
 | Storefront platform connector (Shopify etc.) | Platform unknown; per-SKU CDN lookup covers it once integrated | #4a |
+| Capturing a shot idea from an ordinary Slack message (message shortcut or emoji) | The brief names "ideas get lost in Slack", but most lost ideas were for products that now get 2–3 drafted options regardless, and the sheet's Shot Idea column still reaches the system on the next import. What is genuinely lost is the *specific* idea carrying knowledge the data lacks — recoverable via the sheet or a card's thread | Flow 2, REQUIREMENTS Step 1 option B |
+| Separate `#shot-ideas` channel | Ideas and candidates share one channel because drops happen a handful of times a year, so the channel reads as a record of each drop rather than a crowded queue. Revisit if drops become frequent or rounds start overlapping at 300 SKUs — it is a configuration change, not a redesign | #2b, Flow 2 Step 0 |
 | **Request approved images from the bot** (`/shots images HG-002`, or a whole drop) — the human-facing way to grab approved files for social, marketing, or the Q4 campaign | The replacement for Drive's actual job, without Drive. Deferred from the ~1-day build, not from the design: every image is already stored with a stable URL and an origin, so this is a command over data that exists | Flow 0 Step 8, #4, #16 |
 | Google Drive copy of approved images | **Cut, not deferred.** Storage was always canonical; the copy bought nothing and cost a service account, OAuth, folder config, and a copy-vs-canonical failure mode | Flow 0 Step 8, revises #4 |
 | Image resizing / thumbnails | Full-size approved image is enough to start | #4a |

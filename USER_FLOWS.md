@@ -4,7 +4,7 @@
 > Requirements say *what* the system does and why. This document walks a person
 > through it message by message, so gaps show up before the build rather than during it.
 >
-> Status: **Flows 0 and 1 complete** — every decision they raised is settled. Flows 2–7 not started.
+> Status: **Flows 0, 1 and 2 complete** — every decision they raised is settled. Flows 3–7 not started.
 > Items marked **[OPEN]** carry options only; nothing is decided until a **Decision** line is filled in.
 
 ## Conventions
@@ -22,7 +22,7 @@
 |---|---|---|---|
 | 0 | Install and set up the bot in a channel | Whoever installs | **Settled** |
 | 1 | Import a new CSV export | Ellie or Maya | **Settled** |
-| 2 | Idea review (batch) | Ellie | Not started |
+| 2 | Idea review (batch) | An approver | **Settled** |
 | 3 | Generation → candidate review → approval | Ellie | Not started |
 | 4 | Status check | Maya | Not started |
 | 5 | Photographer upload | Freelancer | Not started |
@@ -680,3 +680,334 @@ ASSUMPTIONS #2, #2a (Slack as the only surface) · #3, #3a (database of record; 
 images) · #3b (house style and campaign theme) · #5 (drop grouping for status) · #6 (archive,
 never delete) · #7 (notes as context) · #9 (expand vs. draft) · #11 (source photo versions) ·
 #12 (the whole merge contract) · #13 (drafting cost).
+
+# Flow 2 — Idea review
+
+**Goal:** turn a pile of drafted shot ideas into approved ideas, fast enough that a
+40-product drop is worth doing. This is the flow the whole design strains against:
+ASSUMPTIONS #1 puts *both* decision points on the same person, so a screen of ideas has to
+clear "in a handful of taps, not forty."
+
+**Trigger:** drafting finishes (Flow 1, Step 8), or anyone runs `/shots ideas`.
+
+**Actor:** an approver (#1). Anyone else can comment freely, and can force-approve with the
+deliberate, recorded friction #1 requires.
+
+**Preconditions:** products exist with 2–3 drafted options each (#9), a house style blurb is
+set or was skipped (#3b, Flow 0), and a campaign theme was applied or not (Flow 1, Step 4).
+
+**Exit state:** every product in the batch has either an approved idea, or was skipped or
+archived (#8). Approved ideas are the only thing that can become images (#3).
+
+**Hands off to:** Flow 3 (generation → candidate review → approval).
+
+**Why this flow is the risk.** Forty products need forty decisions, and no interface makes
+that fewer *decisions* — only fewer taps, less reading, and less scrolling per decision. So
+everything below is about the cost of one decision, repeated forty times.
+
+## What is already settled
+
+From the assumptions, before any new choice is made here:
+
+| Settled | Source |
+|---|---|
+| 2–3 options per product; count is a setting | #9, #13 |
+| **Expand** mode for products that arrived with an idea: option 1 is a faithful rewrite, 2–3 are variations. **Draft** mode for blank products: three options from product data | #9 |
+| The raw original idea text is shown for context | #9 |
+| Prior notes and comments already recorded for a product surface on its card | Flow 2, Step 2 |
+| Notes are shown, never parsed into rules | #7 |
+| Priority products sort to the top | #7 |
+| **Skip** (not now) and **Archive** (hide) sit alongside approve | #8 |
+| No image is generated before an idea is approved | #3 |
+| Ideas are drafted against the house style, plus a campaign theme if set | #3b |
+| A product can be grouped with others into one shot: primary SKU + featured SKUs | #10 |
+| Comments are optional and never block | #1 |
+
+## Where this happens — one channel
+
+**Decision (2.1): idea review shares `#shot-reviews` with candidate review.** This resolves
+the question ASSUMPTIONS #2a left open.
+
+The volume objection is real but it is **peak load, not steady load**. A CSV drop happens a
+handful of times a year — the brief has Ellie rebuilding the wishlist "two or three times a
+year," and the 40-product drop is described as an event. So the channel is busy for a few
+days and quiet for months, and what it accumulates is a **chronological record of each drop**:
+
+```
+     CSV dropped  →  ideas on SKUs  →  candidates  →  approvals  →  quiet  →  repeat
+```
+
+That narrative is worth more than a tidy queue. Splitting ideas into their own channel would
+break the story into two halves that have to be read side by side, and would do it to solve
+crowding that exists on a handful of days a year. It would also split the "one surface" story
+that made Slack the answer in the first place (#2), and give the team a second channel to mute
+wrongly.
+
+What makes it work in practice: **decided cards collapse** (Step 2), so the idea queue shrinks
+as it is worked rather than sitting under the candidates forever, and priority products post
+first (#7).
+
+**Next, not now:** if drops become frequent, or the catalog scales to 300 and rounds start
+overlapping, revisit this — a separate `#shot-ideas` channel is a configuration change, not a
+redesign. Recorded in REQUIREMENTS Part 4.
+
+*(New assumption recorded as #2b: drops happen a handful of times a year. The whole argument
+above depends on it, so it should fail loudly if it turns out to be wrong.)*
+
+## Step 1 — The queue
+
+**System:** posts one message announcing the batch. Not forty messages — this is the door,
+not the review.
+
+```
+💡  37 ideas ready to review — Q4 Drop
+     ⭐ 3 priority products first
+     Approving all of them would generate 148 candidates · about $6.40
+
+     Nothing is generated until you approve an idea.      [Start reviewing]
+```
+
+Spend is shown **up front and for the whole batch**, because this is the moment Maya's
+"don't burn our budget" is actually actionable — after this, money is committed one tap at
+a time (#13).
+
+## Step 2 — Thirty-seven cards, and why that is fine
+
+**Decision (2.2): one message per product, all posted at once.** The card in Step 3 *is* the
+review; there is no digest, no stepper, and no pre-selected default.
+
+The objection to this is that 37 cards is a lot to scroll. The answer is that **the volume is
+a reading cost, not a doing cost**: nobody owes an opinion on every product. Most cards get
+one tap from an approver and nothing else, and the team weighs in on the handful they care
+about. A design that optimises away the scroll — a stepper, or a one-tap approve-all — also
+optimises away the place where everyone else participates, and participation is the thing
+this team already does well ("ideas get 👍'd in Slack, opinions happen in threads").
+
+What that buys, and what it costs:
+
+| | |
+|---|---|
+| Every idea is **individually addressable** | Someone can reply to exactly the one they have a view on, days later, without replaying a queue. |
+| Consistent with #2a | Candidates already use one message per request. Ideas work the same way, so there is one interaction model, not two. |
+| No default to rubber-stamp | The expand/draft asymmetry stops mattering — nothing is pre-selected, so a pure AI guess for a blank product never gets approved by inertia. |
+| **Cost: the scroll is real** | Mitigated below, not denied. |
+
+**What keeps 37 cards navigable**
+
+- **Priority products post first** (#7), so the ones Ellie flagged are at the top of the run.
+- **A decided card collapses in place.** Once approved, the card is replaced by a single line
+  — `✅ HG-002 · "Morning counter" · @ellie` — so the channel shrinks as the queue is worked,
+  and what remains tall is what still needs a decision. The thread, with its comments, stays.
+- **The queue message (Step 1) is the index.** `/shots ideas` re-posts it with what is left,
+  so nobody has to find their place by scrolling.
+- Cards are posted **oldest-last** so the queue reads top to bottom on a phone.
+
+*(Rejected: a stepper. It is the fewest taps and the cleanest channel, and it is single-player
+— the team cannot comment on a card that exists for a moment. Rejected: approve-by-exception.
+It is fastest of all and it is the one design where a pure AI guess for a blank product can go
+live on inertia, which is precisely what the idea gate exists to prevent.)*
+
+## Step 3 — One product, on a phone
+
+This is the unit that repeats. Everything about it is a fight for vertical space.
+
+```
+💡  HG-002 · Stoneware Mug 12oz · Sage · $28          ⭐ priority
+     [ source photo ]
+
+     Sheet idea:  "morning kitchen counter, steam, warm light"
+     Note:        "El: bestseller, do this one first"
+
+     1️⃣  Morning counter — sunlit oak, steam, crumpled linen
+     2️⃣  Slow weekend — open paperback, rumpled duvet, gauzy light
+     3️⃣  Shelf still life — stacked mugs, dried eucalyptus, flat light
+
+     💬  2 earlier notes on this product          ↓ in thread
+
+     [1]  [2]  [3]        [Details]  [Edit…]  [More…]
+```
+
+**Decision: each option is a one-line headline, with the full prompt one tap away.** #9
+commits to detailed, structured scenes (scene, props, lighting) — three of those in full is
+roughly ninety words, which on a phone is a screen of reading per product and forty screens
+per drop. The headline is what a person actually chooses between; the full text matters only
+when they want to check it or edit it, so `[Details]` expands it in-thread.
+
+- The **source photo thumbnail** is shown, because "does this scene suit *this* product" is
+  not answerable from a SKU code.
+- `[More…]` holds the rarer actions — Skip, Archive, Add a product — so the common path is
+  three numbered buttons and nothing else.
+
+**Decision: the card carries everything already said about this product, and the thread starts
+seeded rather than empty.** A drafted idea is a rewrite of somebody's words, and a rewrite that
+hides its source asks people to trust it blind. So:
+
+| Shown | Where it comes from |
+|---|---|
+| The **raw sheet idea**, quoted above the options | The CSV `Shot Idea` column (#9). Option 1 is a faithful rewrite of it, and quoting it lets that be checked at a glance rather than taken on faith. |
+| **Notes, verbatim** | The CSV `Notes` column (#7). "El: bestseller, do this one first" is exactly the context that makes a person choose differently, and parsing notes into rules was already rejected. |
+| **Earlier comments already in the database** | Anything the team said about this product in a previous round, or that arrived with it. Posted into the card's thread when the card is created. |
+
+Nothing the team has already written gets dropped on the floor because the system generated
+something newer. A product that was discussed months ago arrives with that discussion attached,
+which is the difference between a queue of prompts and a record of what this team thinks about
+its own products.
+
+> **Interpretation to check:** the raw sheet idea is shown as **context**, not as a fourth
+> selectable option — #9's reasoning is that a 4–6 word fragment ("gift-y", "with food in it?")
+> is not something an image model can act on, which is why option 1 exists. If you meant it
+> should also be directly choosable as-is, say so and it becomes `0️⃣ As written`.
+
+## Step 4 — Choosing
+
+| Action | What happens |
+|---|---|
+| `[1]` `[2]` `[3]` | That option is approved and generation starts for this product (Step 7). One tap, no confirm. |
+| `[Edit…]` | Opens the option's full text in a Slack modal. Saving approves the edited version (Step 5). |
+| `[More…]` → Write my own | An empty box, for when none of the three is close. |
+| `[More…]` → Skip | Not now. Stays in the queue, sorts to the end (#8). |
+| `[More…]` → Archive | Hides the product from queues, status and drafting; restorable (#6, #8). |
+| `[More…]` → Add a product | Groups another SKU into this shot as a featured product (Step 6). |
+| Thread reply | A comment. Never blocks, never required (#1). |
+
+**A non-approver tapping an option** gets the force-approve path from #1: a deliberate
+confirm, recorded with their name and marked forced. Same rule as image approval, one rule
+to learn.
+
+## Step 5 — Editing an idea
+
+**Decision (2.3): a Slack modal with the option's full text, edited directly.**
+
+```
+     ✏️  Edit idea — HG-002 · Stoneware Mug 12oz
+
+     ┌──────────────────────────────────────────────┐
+     │ Sage stoneware mug on a sunlit oak worktop,  │
+     │ steam rising, crumpled linen cloth, a spill  │
+     │ of coffee beans. Low warm side light, shallow│
+     │ depth of field.                              │
+     └──────────────────────────────────────────────┘
+
+     Product stays exactly as in the photo — only the scene changes.
+
+     [Save and approve]        [Cancel]
+```
+
+**What you type is what gets generated.** No rewriting step sits between the person and the
+prompt, so there is no drift and nothing to re-check. That matters more here than the typing
+cost, because editing is the action someone reaches for precisely when the drafted options
+are wrong — and a system that paraphrases your correction is worst exactly then.
+
+- The modal is prefilled with the **full text of the option**, not a blank box. Most edits are
+  a few words: delete a prop, change the light. That is a tap and a swipe, not a paragraph.
+- Saving **approves the edited version**, so a correction is not a two-step "edit, then go find
+  it again and approve."
+- The strict product-preservation instruction (#14) is applied by the system and is not part of
+  the editable text — an edit changes the scene, and cannot accidentally delete the rule that
+  keeps the product faithful.
+- Edited ideas are recorded as edited, with the original kept, so provenance survives
+  (consistent with #1's audit trail and #16's per-image origin).
+
+**The known cost, stated:** typing on a phone is the thing Ellie will avoid, so `[Edit…]` may
+go unused exactly when it matters, and she may approve a near-miss instead. **What to watch:**
+if edits are rare but rejections at the image stage are common, the drafted options are wrong
+more often than the queue admits, and a faster correction path — saying what to change in one
+line and letting the system rewrite it — is the first thing to add.
+
+*(Rejected for now, not on principle: the one-line steer. It is the faster phone action and it
+is the obvious fix if the above turns out to be a real problem. It was rejected because it puts
+a paraphrase between the person and the prompt at the exact moment they are trying to be
+precise.)*
+
+## Step 6 — Grouping products into one shot
+
+ASSUMPTIONS #10 makes multi-product scenes a feature, and idea review is where it is cheap
+to express — the ideas are still text, and nothing has been generated.
+
+```
+     ➕  Add a product to this shot
+
+         HG-002 is the primary — its photo is the source, so it will be
+         the most accurate thing in the frame.
+
+         Search a SKU or name:  [ towel                    ]
+           HG-035 · Hand Towel · Oat
+           HG-038 · Bath Towel · Charcoal
+```
+
+- The **primary SKU** is the edit `source`; featured SKUs go in as `image_ref` (#10).
+- The message says plainly that the primary is reproduced most faithfully, because #10 flags
+  featured-product fidelity as **unverified** — the person choosing should know which product
+  is the safe one before they commit a scene to it.
+- Approval of the resulting images has to confirm *every* featured product, not just the
+  primary (#10) — that lands in Flow 3.
+
+## Step 7 — Approval starts generation
+
+**Decision: approving an idea starts its generation immediately, per product.** There is no
+separate "now generate" gate.
+
+- Luma image edit takes 30–60s per image, so by the time a person has worked through forty
+  products, the first ones are already back. Batching generation until the end of review
+  would waste exactly that window.
+- It also keeps the model honest: the idea gate *is* the spend gate (#3). One decision, one
+  consequence, no second button that quietly means the same thing.
+- The cost of the round is shown on the product's message as it starts, and rolls into the
+  batch total in status (#5, #13).
+
+```
+     ✅  Approved: "Morning counter" — generating 4 candidates · $0.17
+```
+
+**Consequence to watch:** candidates begin arriving while idea review is still in progress —
+in the same channel (see above). That is good for throughput and mixed for attention: the upside
+is that the first results show up while the idea queue is still live, so a systematically bad
+batch is visible before all 37 are approved.
+
+## What this flow deliberately does not do
+
+**Decision (2.4): capturing an idea from an ordinary Slack message is out of scope.** Ideas
+enter by CSV import or by AI drafting, and nowhere else.
+
+This leaves a pain the brief names directly — "ideas get lost in Slack today", and the sheet's
+own Shot Idea column proves people do write them down somewhere. The argument for cutting it
+anyway is that **the pain it solves is mostly already solved by a different route**: most of
+those lost ideas were for products that now get 2–3 drafted options whether anyone remembers to
+suggest something or not. An idea lost in a thread costs a product nothing when the product is
+already in the queue with options waiting.
+
+What it genuinely costs: the *specific* idea — "shoot the big serving bowl with actual food in
+it" is better than anything drafted from a SKU and a colour name, because it carries knowledge
+the data does not have. That kind of idea now has to survive until the next CSV, in the sheet's
+Shot Idea column, exactly as it does today.
+
+**Two things make that recoverable rather than lost:**
+
+- The sheet still works. Anyone typing an idea into the `Shot Idea` column has it picked up on
+  the next import (Flow 1) and drafted into options (#9). The habit the team already has keeps
+  working during the transition (#3a).
+- Every card's thread is a place to say it (Step 3). An idea raised in a thread is attached to
+  the product and surfaces on the next round's card, so it is captured — just not turned into a
+  request on the spot.
+
+Recorded in REQUIREMENTS Part 4. A message shortcut is the natural shape if it comes back.
+
+## Branches and failure cases
+
+| What happens | System response |
+|---|---|
+| A product is flagged **needs a source photo** (Flow 1, Step 5) | Its idea can be approved normally, but generation does not start. The card says so and offers the upload (#11). |
+| Every option is wrong | `[Edit…]` or write-my-own. Re-drafting the same product against the same inputs buys three more of the same. |
+| Nobody reviews the queue | The batch sits at zero progress, blocked on a person — the same invisible state as an unanswered campaign question. Surfaced by stuck items in status (#5) and nudges. |
+| An approver skips everything | The products stay in the queue and sort to the end (#8). Skip is not a decision, so nothing is generated. |
+| Two approvers review at once | First tap wins; the second sees the card already decided, with who decided it. |
+| The campaign theme was wrong for the batch | Every option reflects it, so the fix is re-drafting the batch under a different theme (#3b), not editing 37 ideas one at a time. |
+| A product's idea is approved twice | Approval is per idea, not per product: a second approved idea is a second request. Per #5a the product is still counted once, which is the blind spot #3b and #5a both flagged. |
+
+## Requirements this flow exercises
+
+ASSUMPTIONS #1 (approver, force-approve, optional comments) · #2a (**resolves its open
+question**, Step 0) · #2b (drop cadence) · #3 (idea gate before spend) · #3b (house style and campaign
+theme) · #5a (short rounds, stuck items) · #7 (notes and priority) · #8 (skip and archive) ·
+#9 (expand vs draft, structured options) · #10 (multi-product grouping) · #13 (candidates
+per round, cost per generation).
