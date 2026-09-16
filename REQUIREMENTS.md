@@ -7,7 +7,7 @@
 >
 > **Scope for the build is set** in *Part 5 — Build scope*.
 
-## TODO before system design
+## TODO before system design — closed
 
 ### A. Confirm details left open in ASSUMPTIONS.md
 > **ASSUMPTIONS.md has been amended** to match everything settled in USER_FLOWS Flows 0 and 1.
@@ -256,8 +256,8 @@ To keep or cut. Each needs a reason either way.
 - [x] **Retry with feedback (USER_FLOWS Flow 3, Step 5).** **Rejecting is free; spending again is not.** `[None of these]` is one tap with no reason asked — rejections are public (#2a) and justifying a taste call in front of the team is friction in the wrong place. `[Generate 4 more]` asks what should be different before it spends, so the friction lands on the money (#13) at the one moment a sentence of typing is obviously worth it. The text joins the next round's prompt and is recorded on the round. `[More like the one I approved]` is offered when one exists; `[Try a different idea]` needs no reason at all.
 - [x] **Photographer upload (ASSUMPTIONS #2, USER_FLOWS Flow 5).** Drop the photo in the channel; the bot asks which product and which kind — a finished shot for review, or a new source photo — each described by what it does next rather than by name. Shots enter the normal approval flow with `origin: photographer` and the AI question asked, never inferred (#16). **Two routes for a freelancer:** invite them as a channel guest, or have a team member upload on their behalf — the second is the default recommendation, since a guest sees every candidate, rejection and spend figure. A separate upload channel is in Part 4.
 - [x] **Pending-decisions email digest — deferred to Part 4 (USER_FLOWS Flow 4).** Designed, not built. It needs no web app: it is a read-only summary of data this flow already assembles. The reason for deferring is that email was going to be "the thing that comes to you", and the drop's daily post plus nudges now do that inside Slack. It still uniquely reaches someone who has stopped opening Slack — build it when items start being force-approved repeatedly.
-- [x] **Archive SKUs (ASSUMPTIONS #6).** Hide a product from queues, status, and idea drafting without deleting it; restorable. **Archive means "not right now," not "dead"** — an import containing an archived SKU unarchives it (USER_FLOWS Flow 1). Open: do archived products' approved images keep being served by the CDN lookup?
-- [ ] **Aspect-ratio variants of approved images (ASSUMPTIONS #15)** — **deferred to Part 4.** Core output stays square 2048×2048, which matches every source photo and is what a product page wants. Variants are an add-on to *approved* images, so no flow depends on them, and the padded-source approach is untested and now untested by choice. Trigger to build: someone asking for a crop of an approved image for social or ads.
+- [x] **Archive SKUs (ASSUMPTIONS #6).** Hide a product from queues, status, and idea drafting without deleting it; restorable. **Archive means "not right now," not "dead"** — an import containing an archived SKU unarchives it (USER_FLOWS Flow 1). ~~Open: do archived products' approved images keep being served by the CDN lookup?~~ **[resolved — #4b, Flow 7] Yes.** Archive is *our* workflow state, not a publishing switch; the site decides independently what it lists, so archiving never breaks a live page. **[v1 scope]** The archive action itself is deferred (Part 5); Skip covers "not right now" at 40 SKUs.
+- [x] **Aspect-ratio variants of approved images (ASSUMPTIONS #15)** — **decided: deferred to Part 4.** Core output stays square 2048×2048, which matches every source photo and is what a product page wants. Variants are an add-on to *approved* images, so no flow depends on them, and the padded-source approach is untested and now untested by choice. Trigger to build: someone asking for a crop of an approved image for social or ads.
 - [x] **AI provenance (ASSUMPTIONS #16).**
   - Every image stores origin (`ai` / `photographer`) plus model and source version.
   - Manual uploads have an "AI-generated?" marker.
@@ -418,6 +418,25 @@ than discovered in APPROACH.md later.
 | Generation | **Luma `uni-1` image edit**, `uni-1-max` selectable (#14) | Fixed by the brief and by #14 |
 | Background work | **`node-cron` + an in-process reconciliation loop** | Scheduled jobs for the daily drop post, nudges and stuck-item detection; a ~15s loop that selects every non-terminal generation row and polls Luma |
 | Install model | **Single workspace at runtime, multi-tenant in shape** | One bot token; reviewers are invited to a demo workspace (the brief blesses this). The app manifest is checked in, and settings are keyed by `team_id` from day one |
+
+### What was rejected, and what it would have cost
+
+Kept because USER_FLOWS' own convention says a decision without its alternatives is hard to
+revisit honestly — and because this table is the raw material for APPROACH.md's *road not taken*.
+
+| Decision | Rejected | Why it lost | What would bring it back |
+|---|---|---|---|
+| Language | **Python + Bolt-Python + FastAPI** | Near parity, and a *better* answer for #16's embedded provenance — `exiftool` bindings and XMP are more idiomatic there. Lost on the mechanical risks that dominate a one-day build: async Python plus a background poller plus Bolt has more ways to be subtly wrong, and deploy packaging is heavier | Provenance metadata becoming a real requirement rather than a recorded promise |
+| Language | **TypeScript + Next.js on Vercel** | The reflexive choice, and it fights three requirements at once: no long-lived process for generation polling, coarse cron, and a bolted-on queue. It also reintroduces a web-app shape this design explicitly does not need | Nothing. This is the shape the abandoned dashboard had |
+| Host | **Fly.io** | `fly.toml` is explicit infra-as-code and demos well. Lost on two traps: `auto_stop_machines` defaults to on, which would kill cron and the generation poller between Slack requests, and Fly Postgres is self-operated unless Neon or Supabase is attached separately | Needing region control, or outgrowing one container |
+| Host | **Render** | Same shape as Railway. Lost because the free web tier spins down on idle — fatal for both cron and Slack's 3s window — and its free Postgres expires after 30 days, which is a live-URL risk exactly when reviewers are looking | — |
+| Host | **AWS directly** (App Runner/ECS + RDS) | Tempting for symmetry with S3, since the reviewers have AWS accounts. Lost on the day budget: IAM, VPC, task definitions and a load balancer is a half-day that buys nothing the flows asked for. Using AWS *for storage only* keeps the credential-list benefit without the infrastructure tax | Someone requiring everything inside one cloud account |
+| Data access | **Drizzle** | Lighter, faster, SQL-shaped, genuinely good. Lost because ~12 related tables means more hand-written SQL and more verbose relation queries, landing on the most time-pressured hours | — |
+| Data access | **`pg` + hand-written SQL** | Total control, nothing hidden. Lost because hand-rolled migrations and row mapping across a dozen tables is a lot of low-value code, and the likeliest source of a late runtime bug | — |
+| Storage | **Railway volume, app-served bytes** | The strongest rejected option. It deletes an entire class of review-time failure (no S3 credentials to misconfigure) and the URL is just as immutable — it is simply our domain. Lost on durability (one replica, one host) and on coupling the thing that must never fail, the lookup, to the thing that is bandwidth-heavy. That coupling is theoretical at this scale and is exactly what worsens at 10× | S3 credentials proving fragile in review. Storage sits behind a thin interface, so this is an afternoon |
+| Storage | **Bytes in Postgres** | Simplest possible thing, no new dependency. Lost because it bloats backups and puts a database read on the page-render path | Nothing |
+| Background work | **BullMQ + Redis**, or **pg-boss** | Real retries, backoff, delayed jobs, and a job lock preventing double-execution. Lost because durability already comes free from the reconciliation-loop shape, and the job lock only pays off with more than one instance. Buying resilience for a load peaking at ~150 images over several days | **Running more than one instance** — at which point the double-post problem is real and pg-boss is the cheaper of the two, since it needs no second datastore |
+| Install model | **Distributed OAuth, multi-workspace** | Would have *demonstrated* the approver role's "any team can install this" (#1) rather than asserting it. Lost because the cost is not the OAuth dance but threading a team-scoped token through every Slack call in the codebase — 2–3 hours showing nothing about the product judgement being evaluated, plus a new failure mode mid-demo | A second team actually wanting it. Settings are keyed by `team_id` from day one so this stays an afternoon |
 
 ### Why there is no queue
 
