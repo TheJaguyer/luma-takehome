@@ -4,7 +4,7 @@
 > Requirements say *what* the system does and why. This document walks a person
 > through it message by message, so gaps show up before the build rather than during it.
 >
-> Status: **Flow 1 complete — all seven decisions it raised are settled.** Flows 2–8 not started.
+> Status: **Flows 0 and 1 complete** — every decision they raised is settled. Flows 2–7 not started.
 > Items marked **[OPEN]** carry options only; nothing is decided until a **Decision** line is filled in.
 
 ## Conventions
@@ -20,14 +20,297 @@
 
 | # | Flow | Primary actor | Status |
 |---|---|---|---|
+| 0 | Install and set up the bot in a channel | Whoever installs | **Settled** |
 | 1 | Import a new CSV export | Ellie or Maya | **Settled** |
 | 2 | Idea review (batch) | Ellie | Not started |
 | 3 | Generation → candidate review → approval | Ellie | Not started |
 | 4 | Status check | Maya | Not started |
 | 5 | Photographer upload | Freelancer | Not started |
 | 6 | Replace a source photo | Anyone | Not started |
-| 7 | Consuming approved images | Web person | Not started |
-| 8 | First-run install and setup | Whoever installs | Not started |
+| 7 | Consuming approved images | Web person, and anyone doing marketing | Not started |
+
+---
+
+# Flow 0 — Install and set up the bot in a channel
+
+**Goal:** get from "someone added a Slack app" to "the team can drop a CSV" in as few taps
+as one person can manage alone, without a settings screen.
+
+**Trigger:** someone invites the bot to a Slack channel.
+
+**Preconditions:** the app is deployed and publicly reachable, and a workspace admin has
+approved the install if the workspace requires approval.
+
+**Exit state:** one review channel is set, at least one **approver** is named, a house style
+blurb exists (or was explicitly skipped), every other setting is on a documented default,
+and the channel has been told what to do next.
+
+**Hands off to:** Flow 1 (import a CSV export).
+
+> **Terminology.** The person who "normally has final say and doesn't need to force-approve"
+> is called the **approver** here, matching ASSUMPTIONS #1. It is a *role*, not a person —
+> usually Ellie at this company, usually one person anywhere, but the role can be held by
+> more than one.
+
+## Main path
+
+### Step 1 — Install, then invite
+
+Two separate acts, and only the second one matters to this flow:
+
+- **Install to the workspace** — OAuth, once, possibly done by an admin who is not on this team.
+- **Invite to a channel** — `/invite @shots` in the channel the team wants reviews in.
+
+**The invite is the configuration.** Whichever channel the bot is invited to becomes the
+review channel (#2a). There is no separate "choose a channel" step and no channel picker to
+get wrong, which also means the person who sets this up never has to know the phrase
+"review channel" before they see it working.
+
+An install with nobody inviting the bot anywhere is **not** a set-up install — it has no
+channel, no approver, and nowhere to post. See Branches.
+
+### Step 2 — Name the approver
+
+**System:** posts its first message in the channel, with the approver already filled in.
+
+```
+👋  Thanks for the invite — I'll post shot reviews in this channel.
+
+     Approver:  @ellie   (you invited me, so I assumed it's you)
+
+     The approver decides. For them it's one tap. Anyone else can still
+     approve when they're away, but it's a deliberate "force approve"
+     and it's recorded with their name.
+
+     [That's right]      [It's someone else…]
+```
+
+**Decision: the inviter is the approver by default, and can hand the role to someone else
+right here.** Whoever is setting this up is usually the person who runs it, so the default
+is right most of the time and costs one tap to confirm. When it is wrong — an engineer or
+an admin did the install — `[It's someone else…]` opens a user picker and hands the role over.
+
+The rules the role carries:
+
+| Rule | Why |
+|---|---|
+| Setup names **exactly one** approver | Keeps first-run to a single tap. A second approver is rare and takes two taps later (Step 5). |
+| The set is **never empty** | With no approver, *every* approval is a force-approve, which quietly voids the distinction #1 is built on. Removing the last one is refused. |
+| Only an approver can change the set | Otherwise anyone can make themselves approver, and force-approve friction becomes decoration. |
+| Escape hatch: a **workspace admin** can change it if no approver is reachable | Covers the one way the rule above can deadlock — see Branches. |
+| Every change is **announced in the channel and recorded** | Who can decide is at least as consequential as a single decision, and #1 already commits to an honest audit trail. |
+| Pending work is **never reassigned** | Items wait on *an approver*, not on a person. Changing the role mid-drop moves nothing and loses nothing. |
+| An approver must be a **member of this channel** | They cannot act on a message they cannot see. Naming a non-member offers to invite them. |
+
+*(Deliberately not offered at setup: adding a second approver. Setup stays one tap, and a
+team that wants two can add the second in Step 5 once they have seen the thing work.)*
+
+### Step 3 — Describe the house style
+
+**System:** asks, in the same channel, for the one other thing it cannot guess.
+
+```
+🎨  Last thing — how should styled shots look?
+
+     A line or two about your brand's look. It steers every shot idea
+     I draft, so it's worth the minute. `/shots style` changes it later.
+
+     For example: "warm, lived-in, natural light, no people, minimal
+     props, a little mess."
+
+     [Describe your look…]        [Skip for now]
+```
+
+**Decision (0.1): the team is asked for the house style at setup, in their own words.**
+The blurb steers every idea the system will ever draft, and there is no safe default for
+"what does this brand look like" — a generic home-goods blurb would be confidently wrong
+and invisible, since nobody reads a setting they did not write.
+
+- `[Describe your look…]` opens a plain-text box. Plain text, because #3b keeps both style
+  layers as text the team owns.
+- The example is shown as **guidance, not a prefilled value**. The team writes their own.
+- `[Skip for now]` exists so install never blocks. Ideas then draft from product data alone,
+  and the first import says so once.
+
+**Mitigation for the known weakness.** ASSUMPTIONS #3b argues against exactly this — a box
+asked for cold is the wizard screen nobody fills in, and an answer derived from the team's
+16 real shot ideas would be better than one written from scratch. That argument does not
+disappear because the question moved; it just stops being install's problem. So once a
+catalog exists, `/shots style` offers **"suggest one from your existing shot ideas"**, which
+is #3b's seeding preserved as an opt-in action rather than an install-time dependency. A
+team that skipped, or wrote something thin, gets the derived version whenever they want it.
+
+> **Contradicts ASSUMPTIONS #3b**, which says install shows a *seeded* blurb "rather than
+> asked for cold." #3b is not satisfiable as written — its seed data arrives by CSV, after
+> install. Flagged in REQUIREMENTS § A; #3b itself should be amended, not just annotated.
+
+*(Rejected: seeding from the first import. It produces the better blurb and keeps setup to
+one question, but it makes the first import structurally different from every later one,
+and it leaves the very first batch of ideas drafted against nothing.)*
+
+### Step 4 — Everything else takes a default
+
+**System:** does not ask about any of this. Each value is a documented default, visible and
+changeable from Slack later.
+
+| Setting | Default | Source |
+|---|---|---|
+| Candidates per round | 4 | #13 |
+| Max rounds per product | 3 | #13 |
+| Model | `uni-1`, selectable per product or idea | #14 |
+| Budget warning thresholds | off | #13 — optional by design, and a number nobody has yet |
+| Scheduled status reports | off | #5 — opt-in |
+| Campaign theme | none | #3b — set per import (Flow 1, Step 4) |
+
+The reasoning is the brief's own evidence: this team abandoned a tool nobody logged into.
+A setup wizard is that tool's first screen. So the rule is that **setup asks only the
+questions with no safe default**, and there are exactly two: *who decides* (Step 2) and
+*what does this brand look like* (Step 3). Everything in the table above has a defensible
+default, so none of it is asked.
+
+### Step 5 — Tell the web person where the images are
+
+**Decision (0.3): Google Drive is dropped from scope, and setup posts the lookup base URL
+in the channel.**
+
+**Drive is cut.** ASSUMPTIONS #4 settled on "A + B + C, all three" — approved images copied
+to Drive *and* served from our storage. Storage was already canonical; Drive was only a
+human-readable copy. Cutting it removes a Google service account, an OAuth path, folder
+configuration, and an entire class of failure where the copy and the canonical store
+disagree — none of which was buying anything the storage layer did not already do.
+
+What the team loses, and what covers it today:
+
+| Lost with Drive | Covered by |
+|---|---|
+| A browsable folder for social and the Q4 campaign | The approval message in Slack still holds the image; the review channel is a searchable archive of everything approved. |
+| Grabbing many images at once | The updated CSV export with image-link columns (REQUIREMENTS Part 3), which is now load-bearing rather than a nice-to-have. |
+| A place to point a non-technical person at | **Next, not now:** ask the bot for them — see below. |
+
+**The lookup URL is posted, not passed around.** With Drive gone, the per-SKU lookup is the
+only path to approved images, so the web person must not have to ask anyone for it — that
+is the exact pain the brief describes ("has to ask in Slack which files are final"). Storage
+itself stays deploy-time operator config; only the resulting base URL is surfaced.
+
+```
+🔌  For whoever wires up the site:
+
+     GET https://<host>/products/{SKU}/images
+
+     Returns approved images in display order, primary first, each with an
+     immutable URL and its origin (ai / photographer). Approving an image
+     changes what this returns — no upload step, no dev work per product.
+```
+
+**Next, not now — request approved images from the bot.** The real replacement for Drive is
+asking for images where the team already is: `/shots images HG-002`, or for a whole drop, so
+someone doing social or the Q4 campaign gets the approved files without a folder, a login, or
+a developer. It is Drive's actual job — a human-facing way to fetch approved images — without
+Drive. Deferred from the ~1-day build, not from the design: every image is already stored with
+a stable URL and an origin (#16), so this is a command over data that exists.
+
+*(Rejected: connecting Drive from Slack via OAuth. It is the wizard screen this whole flow
+avoids, for a copy of files we already serve.)*
+
+### Step 6 — Say what happens next
+
+```
+✅  All set. Drop a CSV export in this channel and I'll take it from there.
+
+     I'll draft shot ideas for anything without one — in your house
+     style — you approve the ideas, and only then do I generate images.
+     Nothing costs money before you approve an idea.
+
+     `/shots help` any time.
+```
+
+**Exit state reached.** Invite, confirm a name, write two lines. The team has said the only
+two things the system cannot work out for itself, and the web person has the one URL they
+would otherwise have had to ask for.
+
+## After setup, from the same channel
+
+### Step 7 — Change or add approvers later
+
+**Actor:** an approver runs `/shots approvers`.
+
+```
+🔑  Approvers
+
+      @ellie        set up this channel · Sep 15
+      @maya         added by @ellie · Oct 2
+
+      [Add someone…]      [Remove…]
+```
+
+Adding or removing posts a short notice in the channel:
+
+```
+🔑  @maya can now approve without force-approving. Added by @ellie.
+```
+
+Multiple approvers are an **or**, never an **and** — any one of them deciding is the
+decision, and nothing waits for a second signature. That keeps #1's "her pick is the
+decision" intact for a team that happens to have two Ellies.
+
+### Step 8 — Moving the review channel
+
+**Actor:** someone invites the bot to a second channel.
+
+Per #2a there is one review channel. A second invite is ambiguous rather than wrong — it is
+almost always either a mistake or a deliberate move — so the bot asks, in the new channel.
+
+```
+👋  I already post shot reviews in #shot-reviews.
+
+     Move them here? Everything comes with me — drops, history, settings,
+     approvers. #shot-reviews keeps the old messages but goes quiet.
+
+     ⚠️  3 products are waiting on a decision right now.
+
+     [Move reviews here]   (approvers only)        [Leave it alone]
+```
+
+**Decision (0.2): the invite is how you move channels, but only an approver can confirm it.**
+Relocating the queue is a decision about where the team works, not a courtesy — it is the one
+action in this flow that can make an in-flight drop vanish from under the people watching it.
+So it gets the same gate as approving.
+
+- Anyone may invite the bot anywhere. The invite is a *proposal*; only the confirm is gated.
+- A non-approver tapping `[Move reviews here]` is told who can confirm, in-channel, so the
+  ask reaches the right person without a DM.
+- The move is announced in **both** channels, so nobody is left watching an empty room.
+- Pending items move with everything else. They were waiting on *an approver*, not on a
+  channel, and their messages are re-posted in the new channel so the queue stays actionable.
+- Consistent with Step 1: the invite is still the configuration. It just does not get to
+  reconfigure an active install without the person who decides.
+
+*(Rejected: refusing to move at all. It is safer, but it means the only way to change
+channels is a path we would have to invent, and a team that outgrows its first channel would
+be stuck with a choice made in their first two minutes.)*
+*(Rejected: allowing a second live channel. It contradicts #2a's one-channel default and adds
+a channel dimension to every message, status scope, and approver rule.)*
+
+## Branches and failure cases
+
+| What happens | System response |
+|---|---|
+| House style skipped at setup | Ideas draft from product data alone. The first import says so once, and points at `/shots style`, which can suggest one from the ideas that just arrived. |
+| App installed, never invited anywhere | Nothing is set up. No channel, no approver, nowhere to post. Should be detectable, since it looks identical to "installed successfully" from the admin's side. |
+| Bot invited by an admin who is not on the team | The default approver is wrong, which is exactly what `[It's someone else…]` is for. |
+| Named approver is not in the channel | Offer to invite them; do not set the role until they are a member. |
+| Named approver is a bot or a Slack guest | Refuse with the reason. The role has to be a person who can be held to a decision. |
+| Bot removed from the channel, then re-invited | Settings and history persist — the channel is the same channel. Do not re-run setup or re-ask for an approver. |
+| **The only approver leaves the workspace** | Every approval silently becomes a force-approve, which is the failure mode #1 is built to make visible. The bot must notice and ask the channel to name a new approver, and a workspace admin can set one (Step 2's escape hatch). |
+| Someone tries to remove the last approver | Refused, with the reason. |
+| Non-approver taps `[Move reviews here]` | Refused, naming who can confirm, in-channel — so the request reaches an approver without a DM. |
+| Bot invited to a DM or a private channel | A private channel is fine if that is what the team wants — a DM is not, since #2a's whole argument is that the queue must be findable by people who are not Ellie. |
+
+## Requirements this flow exercises
+
+ASSUMPTIONS #1 (the approver role, force-approve, audit trail) · #2a (one review channel) ·
+#3b (house style — **contradicted and amended**, Step 3) · #4 (**Drive dropped**, Step 5) · #4a (the lookup) ·
+#5 (scheduled reports default off) · #13 (generation and budget defaults) · #14 (default model).
 
 ---
 
@@ -42,7 +325,8 @@ columns as `data/catalog.csv`, mostly new SKUs, `Shot Idea` mostly blank.
 
 **Preconditions**
 - The Slack app is installed and a review channel is configured (#2a).
-- The house style blurb has been seeded and confirmed (#3b, Flow 8).
+- A house style blurb exists, written by the team at setup (#3b, Flow 0 Step 3). If it was
+  skipped, ideas draft from product data alone and the first import says so once.
 - The actor is in the channel. Anyone can import; this is not an Ellie-only action.
 
 **Exit state:** every row with a usable SKU exists as a product, changes to existing products are

@@ -5,11 +5,21 @@
 ## TODO before system design
 
 ### A. Confirm details left open in ASSUMPTIONS.md
+- [ ] **#3b — house style seeding needs amending, not annotating.** #3b says install shows a
+  blurb *seeded* from the 16 existing ideas, "rather than asked for cold." That is not
+  satisfiable: the ideas arrive by CSV, after install. **Settled in USER_FLOWS Flow 0, Step 3:**
+  setup asks the team to describe their look in their own words (skippable), and `/shots style`
+  later offers to suggest one derived from their real shot ideas — #3b's seeding kept as an
+  opt-in action instead of an install-time dependency. Rewrite #3b to match.
 - [ ] **#4 — CDN/serving defaults** (suggested, not confirmed):
   - Immutable per-version image URLs plus a per-SKU lookup.
   - Slack notice and one-tap revert when a SKU's live images change.
   - Image display order with a primary image.
   - Resizing/thumbnails deferred.
+  - **Amend #4 — Google Drive is cut (USER_FLOWS Flow 0, Step 8).** #4 settled on "A + B + C,
+    all three"; Drive is now out of scope entirely. Storage is the only home for approved
+    images. Setup posts the lookup base URL in the channel so the web person never has to ask
+    for it. Replacement for Drive's human-facing job is in Part 4 as *next*.
 - [ ] **#6 — Archived SKUs:** does the CDN lookup keep serving their approved images? (Suggested default: yes, so archiving never breaks a live page.)
   - **Settled in USER_FLOWS Flow 1, Step 4:** archive means *not right now*, not *dead*. A SKU
     appearing in an import is **unarchived**, named in the import summary with a one-tap undo,
@@ -17,6 +27,9 @@
     back to shoot under a new theme, and a Q4 export would otherwise silently omit the products
     the campaign is for.
 - [ ] **#7 — Priority:** only Ellie can set it, or anyone (consistent with force-approve in #1)?
+  - Note: USER_FLOWS Flow 0 makes **approver** an explicit, configurable role (default: whoever
+    invites the bot; changeable, and more than one allowed). "Only Ellie" should probably be
+    read as "only an approver", which answers this without naming a person.
 - [ ] **#10 — Multi-product shots:** does an image count toward each featured SKU's 2–3 approved images, and does it appear in each featured SKU's CDN lookup or only the primary's?
 - [ ] **#12 — Interpretation check:**
   - New shot ideas from import skip change-review but still go through idea review.
@@ -47,7 +60,14 @@
   - [ ] Audit trail (effectively required by #1 force-approve and #16 provenance; confirm scope).
   - [ ] Updated CSV export with status and image-link columns.
   - [ ] Aspect-ratio variants of approved images (#15).
-- [ ] **Non-functional:** stack, host, database, and object storage (Slack webhooks need a public URL; Drive needs a Google service account).
+- [x] **Setup / install (USER_FLOWS Flow 0).** The invite is the configuration: the channel the
+  bot is invited to becomes the review channel, and the inviter becomes the **approver** by
+  default (changeable at setup, and add/remove later via `/shots approvers`; the set is never
+  empty, only an approver can change it, workspace admins are the escape hatch). Setup asks
+  only the two questions with no safe default — who decides, and the house style. Everything
+  else takes a documented default. A second invite proposes moving the review channel, which
+  **only an approver** can confirm. Setup posts the per-SKU lookup base URL in the channel.
+- [ ] **Non-functional:** stack, host, database, and object storage (Slack webhooks need a public URL). **No Google service account needed** now that Drive is cut.
 - [ ] **Prioritize for the ~1-day build:** mark each confirmed item as in / out / next.
 
 ### C. Validate with real Luma generations (~$0.50) before locking the design
@@ -72,7 +92,7 @@
 
 Existing toolkit: **Google Sheets/Docs/Drive, Slack, Gmail.** Nothing else.
 
-**Definition of done (ASSUMPTIONS #5a):** the **product** is the unit — done = **2+ approved images** for that SKU, filed to Drive and served by the per-SKU lookup. "On the product page" is out of scope (#4); status ends at *approved & ready*.
+**Definition of done (ASSUMPTIONS #5a):** the **product** is the unit — done = **2+ approved images** for that SKU, stored and served by the per-SKU lookup. "On the product page" is out of scope (#4); status ends at *approved & ready*.
 
 ## Facts that constrain the design
 
@@ -178,11 +198,15 @@ Sub-questions: Does rejecting ask for a reason, and does that reason feed a retr
 **Pain:** The wrong file went live, and nobody noticed for three weeks.
 
 Options:
-- **A.** Approved images auto-upload to Drive with deterministic names (e.g., `HG-002_sage-mug_styled_01.jpg`), one folder per SKU or per batch.
+- **A.** Approved images auto-upload to Drive with deterministic names (e.g., `HG-002_sage-mug_styled_01.jpg`), one folder per SKU or per batch. _(Cut.)_
 - **B.** Only approved images are ever filed, so the folder is final by definition.
 - **C.** Hosted image URLs instead of Drive (Drive requires Google OAuth setup).
 
-**Decision (ASSUMPTIONS #4):** **A + B + C, all three.** Only approved images are filed. They go to Drive with SKU-based names **and** are served from our storage as a CDN. Storage is canonical; Drive is a copy for humans.
+**Decision (revised in USER_FLOWS Flow 0, Step 8):** **B + C. Drive is dropped.** Only approved images are filed, and they live in our storage, served by the per-SKU lookup with SKU-based names. Storage was always canonical; the Drive copy bought nothing the storage layer did not already do, and cost a Google service account, an OAuth path, folder config, and a class of failure where the copy and the canonical store disagree.
+
+What covers the gap: approved images stay in the Slack approval message (a searchable archive), and the **updated CSV export with image-link columns** becomes load-bearing rather than a nice-to-have. The real replacement — **asking the bot for approved images** (`/shots images HG-002`, or a whole drop) for social and campaign use — is in Part 4 as *next*.
+
+> **Supersedes ASSUMPTIONS #4's "A + B + C, all three."** #4 must be amended, not just annotated.
 
 ### Step 7. Publishing to the site
 **Today:** The web person uploads roughly weekly, after asking in Slack which files are final.
@@ -249,7 +273,7 @@ To keep or cut. Each needs a reason either way.
 - [x] **Reminders and nudges.** **Dependency, not an extra (ASSUMPTIONS #5a).** Short rounds wait for a person, so a SKU at 1-of-2 approved is blocked on nobody and sits in no queue — nudges and the stuck-item list are the only things that surface it. Ping when candidates have waited more than N days, when a product is short of its 2, or when a drop deadline is at risk.
 - [x] **Replace source photo (ASSUMPTIONS #11).** Per-SKU upload in Slack; versioned; originals kept.
 - [ ] **Audit trail.** Who approved what, and when, for each image.
-- [ ] **Updated CSV export** with status and image-link columns.
+- [x] **Updated CSV export** with status and image-link columns. **Promoted from nice-to-have:** with Drive cut (Flow 0, Step 8), this is the only bulk way to hand someone every approved image link.
 
 ## Part 4 — Out of scope / future
 
@@ -258,6 +282,8 @@ Explicitly deferred, with the reason recorded in ASSUMPTIONS.md.
 | Item | Why deferred | Source |
 |---|---|---|
 | Storefront platform connector (Shopify etc.) | Platform unknown; per-SKU CDN lookup covers it once integrated | #4a |
+| **Request approved images from the bot** (`/shots images HG-002`, or a whole drop) — the human-facing way to grab approved files for social, marketing, or the Q4 campaign | The replacement for Drive's actual job, without Drive. Deferred from the ~1-day build, not from the design: every image is already stored with a stable URL and an origin, so this is a command over data that exists | Flow 0 Step 8, #4, #16 |
+| Google Drive copy of approved images | **Cut, not deferred.** Storage was always canonical; the copy bought nothing and cost a service account, OAuth, folder config, and a copy-vs-canonical failure mode | Flow 0 Step 8, revises #4 |
 | Image resizing / thumbnails | Full-size approved image is enough to start | #4a |
 | Tracking discontinued products | Not our problem to solve; archive covers clutter | #6 |
 | Automatic source-photo review and touch-up | Color-shift risk, false alarms on dark products; manual replace covers it | #11 |
