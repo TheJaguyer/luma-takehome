@@ -5,42 +5,27 @@
 ## TODO before system design
 
 ### A. Confirm details left open in ASSUMPTIONS.md
-- [ ] **#3b — house style seeding needs amending, not annotating.** #3b says install shows a
-  blurb *seeded* from the 16 existing ideas, "rather than asked for cold." That is not
-  satisfiable: the ideas arrive by CSV, after install. **Settled in USER_FLOWS Flow 0, Step 3:**
-  setup asks the team to describe their look in their own words (skippable), and `/shots style`
-  later offers to suggest one derived from their real shot ideas — #3b's seeding kept as an
-  opt-in action instead of an install-time dependency. Rewrite #3b to match.
+> **ASSUMPTIONS.md has been amended** to match everything settled in USER_FLOWS Flows 0 and 1.
+> Revised entries are marked **[revised]** there, with the original reasoning kept and what
+> changed recorded underneath: #1 (approver as a role), #2a (channel move), #3b (house style
+> asked at setup), #4 (Drive cut), #6 (archive means "not right now"), #12 (rejection reserved
+> for broken identity; bulk accept; idempotent re-import). The items below are what remains.
 - [ ] **#4 — CDN/serving defaults** (suggested, not confirmed):
   - Immutable per-version image URLs plus a per-SKU lookup.
   - Slack notice and one-tap revert when a SKU's live images change.
   - Image display order with a primary image.
   - Resizing/thumbnails deferred.
-  - **Amend #4 — Google Drive is cut (USER_FLOWS Flow 0, Step 8).** #4 settled on "A + B + C,
-    all three"; Drive is now out of scope entirely. Storage is the only home for approved
-    images. Setup posts the lookup base URL in the channel so the web person never has to ask
-    for it. Replacement for Drive's human-facing job is in Part 4 as *next*.
+  - _(Drive is cut and #4 is amended — see the note at the top of this section.)_
 - [ ] **#6 — Archived SKUs:** does the CDN lookup keep serving their approved images? (Suggested default: yes, so archiving never breaks a live page.)
-  - **Settled in USER_FLOWS Flow 1, Step 4:** archive means *not right now*, not *dead*. A SKU
-    appearing in an import is **unarchived**, named in the import summary with a one-tap undo,
-    and returns with its full history. Rationale: the common case is bringing a seasonal product
-    back to shoot under a new theme, and a Q4 export would otherwise silently omit the products
-    the campaign is for.
+  - _(Import-unarchives-a-SKU is settled and #6 is amended. The CDN question above is still open.)_
 - [ ] **#7 — Priority:** only Ellie can set it, or anyone (consistent with force-approve in #1)?
-  - Note: USER_FLOWS Flow 0 makes **approver** an explicit, configurable role (default: whoever
-    invites the bot; changeable, and more than one allowed). "Only Ellie" should probably be
-    read as "only an approver", which answers this without naming a person.
+  - Note: **approver** is now an explicit configurable role (#1, Flow 0), so this probably
+    resolves to "only an approver" — still open.
 - [ ] **#10 — Multi-product shots:** does an image count toward each featured SKU's 2–3 approved images, and does it appear in each featured SKU's CDN lookup or only the primary's?
 - [ ] **#12 — Interpretation check:**
   - New shot ideas from import skip change-review but still go through idea review.
   - Approved images stay live during re-review.
-  - **Refinement from USER_FLOWS Flow 1, Step 5 — needs confirming in #12 itself:** an
-    unreachable photo URL is no longer a rejection. Only a missing or duplicate SKU is
-    rejected. A row with a bad photo URL still imports; if the SKU has no photo in the
-    database the product is flagged **needs a source photo** (ideas still draft; generation
-    is blocked until a photo is uploaded per #11), and if it already has one, the existing
-    source photo version simply stands. Rationale: a rejected row is invisible once the
-    Slack message scrolls, while a flagged product sits in the queue, in status, and in nudges.
+  - _(The photo-URL refinement is settled and folded into #12.)_
 
 ### B. Resolve remaining REQUIREMENTS decisions
 - [ ] **Step 1:** Slack capture of ad-hoc ideas (e.g., turning a Slack message into a request)? What does batch idea review look like on a phone for a 40-product drop? **Highest-risk open item** — #1 routes both approval stages through Ellie, so the drop only works if a screen of ideas clears in a few taps.

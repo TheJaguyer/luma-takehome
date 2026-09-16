@@ -2,7 +2,10 @@
 
 Questions I'd ask the team if I could, the assumption I proceeded on instead, and what that assumption changed about what I built.
 
-> Status: **All 16 initial questions answered.** Some details are flagged for confirmation during REQUIREMENTS review.
+> Status: **All 16 initial questions answered.** Entries marked **[revised]** were changed by
+> writing the flows in [USER_FLOWS.md](USER_FLOWS.md) — the original reasoning is kept, with
+> what changed and why recorded underneath, because the reason an assumption failed is worth
+> more than the assumption.
 
 Format for each entry:
 - **Question:** what I'd ask
@@ -23,6 +26,12 @@ Format for each entry:
   - Every approval records **who** approved and whether it was forced, so Ellie can see what was decided without her and the audit trail stays honest.
   - Comments are optional and are never a required step in the flow.
   - **The same rule applies at both decision points** — idea approval and image approval (#3). One rule to learn, and Ellie stays the taste filter at the moment spend begins, which is exactly Maya's "don't burn our budget on stuff she'll reject."
+  - **[revised — USER_FLOWS Flow 0]** "Ellie" is now a configurable **role**, not a name. Flow 0 makes the approver explicit so any team can install this:
+    - Whoever invites the bot becomes the approver by default; they can hand the role to someone else during setup.
+    - The role can be held by more than one person, added or removed later via `/shots approvers`.
+    - Multiple approvers are an **or**, never an **and** — any one of them deciding is the decision. Nothing waits for a second signature, so "her pick is the decision" survives a team with two Ellies.
+    - The set is **never empty** (with no approver, every approval is a force-approve and this distinction becomes decoration), only an approver can change it, and a workspace admin is the escape hatch if none is reachable.
+    - Pending work waits on *an approver*, never on a person, so changing the role mid-drop moves nothing and loses nothing.
   - **Cost:** the 40-product drop needs ~40 idea approvals *and* up to 40 image approvals from the person who also runs half of everything else. That makes **batch idea review load-bearing, not a nice-to-have** (#3): a screen of drafted ideas has to clear in a handful of taps, not forty. This is the first place the design strains under the drop, and the first thing to watch after it ships.
 
 ### 2. Which tool does Ellie actually live in on her phone: Slack or Gmail?
@@ -42,6 +51,7 @@ Format for each entry:
   - Discussion happens in that message's thread, keeping the channel scannable.
   - No DM approval path to build. One surface, one set of interactions.
   - **Cost:** Ellie's rejections are public. That matches how it works today, so it isn't new — but it argues against demanding a written reason on reject (see REQUIREMENTS Step 5).
+  - **[revised — USER_FLOWS Flow 0]** The channel is not configured, it is *invited*: whichever channel the bot is invited to becomes the review channel. A later invite elsewhere **proposes moving** reviews there, and only an approver can confirm the move — relocating the queue is the one action that can make an in-flight drop vanish from under the people watching it, so it gets the same gate as approving. Moves are announced in both channels and pending items come along.
   - Open: does **idea** review (#3, #9) share this channel or get its own? Same volume question, text instead of images.
 
 ### 3. Who writes shot ideas for the 40-product drop, and when?
@@ -62,12 +72,16 @@ Format for each entry:
 
 #### 3b. What should AI-drafted ideas be styled *against*?
 - **Assumption:** Two layers of plain text the team owns:
-  1. **House style** — a short editable blurb describing the brand's look ("warm, lived-in, natural light, no people, minimal props, a little mess"). Applies to every draft. **Seeded on install** from the 16 existing ideas plus product data and shown for the team to edit, rather than asked for cold.
+  1. **House style** — a short editable blurb describing the brand's look ("warm, lived-in, natural light, no people, minimal props, a little mess"). Applies to every draft. ~~**Seeded on install** from the 16 existing ideas plus product data and shown for the team to edit, rather than asked for cold.~~ **[revised — see below.]**
   2. **Campaign theme** — an optional overlay applied to one batch of drafts ("holiday mantel, evergreen, candlelight" for Q4; "Halloween" in October). Switched on for a run, then off.
 - **Why:** The 16 existing ideas share an obvious voice, so a style is derivable. But they are 4–6 word fragments ("gift-y", "styled on a sofa"), and few-shotting them would teach the model to write fragments exactly where #9 commits to detailed, structured scenes. They are also **6 of 16 holiday**, which is campaign bleed rather than house style — baking that into every draft puts evergreen on a patio shot in July. Splitting the two layers gives the team a lever they would otherwise only have by rejecting ideas one at a time, forty times.
 - **What it changed:**
   - Two settings fields, both plain text, both editable from Slack.
-  - Install shows a **seeded style blurb to confirm or edit**, never a blank box.
+  - ~~Install shows a **seeded style blurb to confirm or edit**, never a blank box.~~
+  - **[revised — USER_FLOWS Flow 0, Step 3] Seeding at install was not possible.** The seed data is the 16 existing shot ideas, and those arrive by CSV — *after* install. Flow 0 ended with an empty database while Flow 1 listed a confirmed blurb as a precondition, so each flow expected the other to have done it. What replaced it:
+    - **Setup asks the team to describe their look, in their own words** (skippable, so install never blocks; skipping means ideas draft from product data alone and the first import says so once). An example is shown as guidance, never as a prefilled value.
+    - **The seeding idea survives as an opt-in action.** Once a catalog exists, `/shots style` offers "suggest one from your existing shot ideas." A team that skipped, or wrote something thin, can take the derived version whenever they want it.
+    - **The original objection still stands and is worth remembering:** a box asked for cold is the wizard screen nobody fills in, and a blurb derived from real ideas beats one written from scratch. That argument did not turn out to be wrong — it just could not be satisfied at install, so it moved from being a dependency to being an offer.
   - **Themed batches are a first-class action:** re-draft ideas for any set of products under a campaign theme — the Q4 campaign the brief names, Halloween, spring. A product can carry a seasonal shot and an everyday shot.
   - The campaign theme is recorded on the idea, so approved images know which campaign produced them.
   - **Tension with #5a:** done is product-level at 2+ approved images, so a themed round for an already-done product moves no progress number. Themed batches therefore need to be tracked as their own run. This is exactly the blind spot #5a flagged, arriving sooner than expected — **watch it.**
@@ -79,11 +93,15 @@ Format for each entry:
 ### 4. Does "on the product page" have to be verified, or is "handed to the web person" enough?
 > _To revisit during REQUIREMENTS review: the caching/immutable-URL, live-change notice + revert, image ordering, and deferred resizing details below were suggested defaults, not yet confirmed._
 - **Assumption:** The system's job ends at **approved, SKU-named images that are ready for the site**. It does not push images into the storefront or verify the product page. Two things make "ready" real:
-  1. Approved images are copied to the shared **Google Drive folder** with SKU-based filenames (for humans, social, and the Q4 campaign).
-  2. The same images are served from **our own storage as a simple CDN**, with a per-SKU lookup the web developer can code against once. After that, the site pulls the current approved images by SKU automatically.
+  1. ~~Approved images are copied to the shared **Google Drive folder** with SKU-based filenames (for humans, social, and the Q4 campaign).~~ **[revised — Drive is cut; see below.]**
+  2. The images are served from **our own storage as a simple CDN**, with a per-SKU lookup the web developer can code against once. After that, the site pulls the current approved images by SKU automatically.
 - **Why:** The brief never names the site platform and offers no site access (see 4a). The wrong-file incident came from ambiguous filenames and a folder full of non-final files. Since we already store every image, serving the approved ones by SKU removes the manual weekly upload and the "which files are final?" question entirely.
 - **What it changed:**
-  - Storage is the canonical home for images. Drive is a human-friendly copy of approved images only, never candidates.
+  - Storage is the canonical home for images. ~~Drive is a human-friendly copy of approved images only, never candidates.~~
+  - **[revised — USER_FLOWS Flow 0, Step 5] Google Drive is cut from scope entirely.** Storage was always canonical, so the Drive copy was pure addition: it cost a Google service account, an OAuth path, folder configuration, and a class of failure where the copy and the canonical store disagree — which is the wrong-file incident wearing a different hat. It bought nothing the storage layer did not already do.
+    - **The lookup base URL is posted in the channel at setup**, so the web person never has to ask anyone for it. That was the actual pain in the brief ("has to ask in Slack which files are final"), and with Drive gone the lookup is the only path to approved images.
+    - **What the team loses, and what covers it:** a browsable folder for social and the Q4 campaign — the Slack approval message still holds the image and the review channel is a searchable archive; grabbing many at once — the updated CSV export with image-link columns, which this promotes from nice-to-have to load-bearing.
+    - **Next, not now:** `/shots images HG-002`, or for a whole drop — asking the bot for approved files. That is Drive's real job (a human-facing way to fetch approved images without a folder, a login, or a developer) without Drive. It needs no new data: every image already has a stable URL and an origin (#16).
   - **Per-SKU image lookup** (e.g., `GET /products/HG-002/images`) returns approved images in display order, with a primary image first.
   - **Every image version gets a unique, immutable URL.** Swapping an image changes the lookup, not the file behind a URL, so browser and CDN caches can't keep serving a replaced image.
   - **Approval = live** (once the site is wired up). Images can be replaced days or months later with no dev work. Because nobody sits in between anymore, every change to a product's live images posts a notice in Slack and can be **reverted in one tap**.
@@ -125,6 +143,8 @@ Format for each entry:
   - Import treats SKU as a unique key; consecutive numbering isn't checked.
   - **Nothing is deleted based on its absence from an import.** Products, ideas, and images stay in the database even if a later CSV leaves them out (see #12).
   - **Archive, not delete:** any SKU can be archived. Archived products are hidden from review queues, status reports, and idea drafting, but their data and history remain and they can be restored.
+  - **[revised — USER_FLOWS Flow 1, Step 4] Archive means "not right now," not "dead."** A team may archive a product that is only seasonally available, then want it back to shoot under a new theme. So **a SKU appearing in an import is unarchived**, named in the import summary (not just counted) with a one-tap undo, and returns with its full history. The undo sits in the same message as the campaign question, which is what makes it safe: drafting has not started, so a stale export that resurrects thirty products costs one tap to reverse and nothing to spend.
+    - **Watch:** an unarchived seasonal product may already have 2+ approved images, so it reads as **done** (#5a) even though it was re-imported precisely because it needs new themed shots. It appears in no "needs work" count. That is why the summary names these products rather than folding them into a number — and it is #3b's tension with #5a firing again.
 
 ### 7. Are "El:" notes Ellie's own, and should they carry more weight (priority, cautions)?
 - **Assumption:** "El:" probably marks Ellie's notes, but **no note gets special automatic treatment.** All notes are context: they inform AI idea and prompt drafting and are shown alongside items in review. **Priority is an explicit setting**, not something inferred from note text.
@@ -133,7 +153,7 @@ Format for each entry:
   - Notes are passed as context into idea drafting and displayed in Slack review messages.
   - No LLM classification of notes; no automatic priority from import.
   - **Manual priority flag:** Ellie can mark products as priority. Priority items sort to the top of every queue and list, and are called out by name in status reports and scheduled updates.
-  - Open: can others set priority too (consistent with force-approve in #1), or only Ellie?
+  - Open: can others set priority too (consistent with force-approve in #1), or only Ellie? **Note (USER_FLOWS Flow 0):** now that **approver** is an explicit configurable role rather than a person, this probably resolves to "only an approver" without naming anyone — but it is still open.
 
 ### 8. Should HG-032 ("discontinued after spring?") be skipped?
 - **Assumption:** No. HG-032 is treated like every other product. Ideas are drafted for **every** product without a shot idea, and the idea review offers **Skip** (not now) and **Archive** (hide per #6).
@@ -181,7 +201,11 @@ Format for each entry:
 - **What it changed:**
   - **Validation (tolerant):**
     - Headers matched loosely (case/whitespace); `SKU` and `Photo` required; unknown columns ignored.
-    - Rows with a missing SKU, duplicate SKU, or unreachable photo URL are rejected and listed in the import summary. The rest of the file still imports.
+    - ~~Rows with a missing SKU, duplicate SKU, or unreachable photo URL are rejected and listed in the import summary.~~ The rest of the file still imports. **[revised below.]**
+    - **[revised — USER_FLOWS Flow 1, Steps 2–5] Rejection is reserved for broken identity.** Only a **missing or duplicate SKU** is rejected: there is nothing to key the record on, so there is nothing to keep. An **unreachable photo URL is no longer a rejection** — the row still applies, and:
+      - if the SKU has no photo in the database, the product is created and flagged **needs a source photo**. Ideas still draft (they are text and need no photo); generation is blocked until a photo is uploaded (#11), and the warning travels with the product into idea review.
+      - if the SKU already has a photo, nothing is flagged: the existing source photo version stands, consistent with "blanks never erase."
+      - **Why:** a rejected row is invisible the moment the Slack message scrolls, which is the one thing this flow exists to prevent. A flagged product sits in the queue, in status, and in nudges — machinery #5a already made a dependency. It also means a flaky asset host turns a clean import into a visible to-do list rather than a partial one, and the fix is already built (**replace source photo**, #11), so a phone-only person can unblock it without any per-row import UI.
   - **New SKUs:** created directly.
   - **Existing SKUs, product detail changes** (name, category, color, material, price, notes): held as a **pending change** showing current vs. incoming, applied only when someone accepts.
   - **Existing SKUs, Photo URL changes:** same pending review, with old and new photos side by side. Accepting creates a new source photo version (#11).
@@ -189,6 +213,8 @@ Format for each entry:
   - **Blank cells never erase** existing data.
   - Approvals, candidates, priority, and archive state are never touched by an import.
   - **Re-review queue:** when an accepted change hits a SKU that already has approved images, those images enter a brief re-review ("still accurate?": keep / replace). Images stay live while they wait, so the site doesn't lose images mid-review.
+  - **[revised — USER_FLOWS Flow 1, Step 6] Pending changes bulk-accept, except photos.** Detail changes (price, name, category, colour, material, notes) can be accepted together: wrong is wrong, but it is text in a database and nothing goes live. **Photo changes are always individual**, because a new photo creates a source version and can send approved images to re-review — the exact path to "the wrong image was live for three weeks." The two are counted and presented separately so a bulk accept can never quietly include a photo, and a SKU changing both splits across the two groups. Every accept is attributed, bulk or not. Rationale for having a bulk path at all: a thirty-card list is what makes people tap through without reading, which costs the review its entire purpose.
+  - **[revised — USER_FLOWS Flow 1, Steps 3–5] Re-import is the repair path, and it is safe.** Unchanged rows are no-ops and SKUs match by key, so **re-dropping the same file is idempotent**. That matters because "fix the bad rows in the sheet and export again" is what a person actually does, and it keeps the sheet authoritative through the transition (#3a) with no per-row editing UI in Slack — which would write the correction to the database but not the sheet, so the next export would re-break the same row.
   - Import summary in Slack, e.g., "12 new · 3 changes to review · 2 new ideas · 2 rows rejected."
 
 ## Budget and quality
