@@ -4,8 +4,9 @@
 > [USER_FLOWS.md](USER_FLOWS.md) has walked all seven flows end to end — which settled most of
 > what was open here and amended a dozen assumptions along the way.
 >
-> **Three things remain:** aspect-ratio variants (#15), the stack and hosting choice, and the
-> in / out / next prioritisation for the ~1-day build.
+> **Two things remain, and they belong together:** the stack and hosting choice, and the
+> in / out / next prioritisation for the ~1-day build — what is buildable in a day depends on
+> what it is built on.
 
 ## TODO before system design
 
@@ -40,14 +41,14 @@
   - ~~"Almost — make it warmer" refinement~~ — settled: that sentence is what `[Generate 4 more]` asks for, and `[More like the one I approved]` covers the common case without typing.
   - ~~Force-approve friction (#1)~~ — settled (Flow 3, Step 6): a required sentence saying why, posted publicly with the approval.
 - [x] **Part 2 — filled in.** Every row of Maya's asks table now points at the flow that answers it.
-- [x] **Part 3 extras — every item decided with a reason**, except aspect-ratio variants:
+- [x] **Part 3 extras — every item decided with a reason:**
   - [x] CSV import entry point — **settled: Slack file drop** (USER_FLOWS Flow 1, Step 1). **Must be demoed in the video.**
   - [x] Retry with rejection feedback — **kept**: free to reject, a required sentence to regenerate (Flow 3).
   - [x] Pending-decisions email digest — **deferred to Part 4** (Flow 4). Needs no web app; deferred because Slack now pushes what email was for.
   - [x] Reminders and nudges — **kept, as a dependency**: channel posts naming products, never people (Flow 4).
   - [x] Audit trail — **kept as data, no browsable surface** (Flow 4). A web data view is in Part 4.
   - [x] Updated CSV export with status and image-link columns — **kept, and promoted to load-bearing** once Drive was cut.
-  - [ ] **Aspect-ratio variants of approved images (#15)** — the one Part 3 extra still undecided.
+  - [x] **Aspect-ratio variants of approved images (#15)** — **cut to Part 4.** Square only.
 - [x] **Setup / install (USER_FLOWS Flow 0).** The invite is the configuration: the channel the
   bot is invited to becomes the review channel, and the inviter becomes the **approver** by
   default (changeable at setup, and add/remove later via `/shots approvers`; the set is never
@@ -55,8 +56,11 @@
   only the two questions with no safe default — who decides, and the house style. Everything
   else takes a documented default. A second invite proposes moving the review channel, which
   **only an approver** can confirm. Setup posts the per-SKU lookup base URL in the channel.
-- [ ] **Non-functional:** stack, host, database, and object storage (Slack webhooks need a public URL). **No Google service account needed** now that Drive is cut.
-- [ ] **Prioritize for the ~1-day build:** mark each confirmed item as in / out / next.
+- [ ] **Stack, host, database, and object storage.** See *What the seven flows require of the stack*
+  at the end of this document — the constraints are collected there. **No Google service account
+  needed** now that Drive is cut.
+- [ ] **Prioritize for the ~1-day build:** mark each confirmed item as in / out / next. Depends on
+  the stack choice — what is buildable in a day is a function of what it is built on.
 
 ### C. Validate with real Luma generations
 > **No longer blocking.** We proceed on #14a as written: `uni-1` image edit reproduces the
@@ -69,20 +73,22 @@
 
 | Person | Role | What they need from this | Hard constraints |
 |---|---|---|---|
-| **Ellie** | Runs product content (+ half of everything else) | Approve/reject shots fast, from her phone | Phone-first. **No new app to install.** Her pick is the decision. |
+| **Ellie** | Runs product content (+ half of everything else) | Approve/reject shots fast, from her phone | Phone-first. **No new app to install.** Her pick is the decision — modelled as a configurable **approver** role (#1), so any team can install this. |
 | **Maya** | Founder | See status without asking Ellie; don't waste money; 40-product drop launches with styled shots | Just rejected a dashboard tool nobody logged into |
-| **Web person** | Uploads images to the site ~weekly | Know exactly which files are final, for which product | Currently has to ask in Slack; once shipped the wrong `IMG_43xx.jpg` |
+| **Web person** | Uploads images to the site ~weekly | Know exactly which files are final, for which product | Currently has to ask in Slack; once shipped the wrong `IMG_43xx.jpg`. After a one-time integration they upload nothing — approval *is* publication (#4, Flow 7). |
 | **Rest of team** | Suggest shot ideas, give opinions | Get ideas captured; weigh in | Ideas get lost in Slack today |
 
-Existing toolkit: **Google Sheets/Docs/Drive, Slack, Gmail.** Nothing else.
+Existing toolkit: **Google Sheets/Docs/Drive, Slack, Gmail.** Nothing else. Of these the design uses **Slack only** — the sheet stays as an import/export format during the transition (#3a), and Drive is cut (#4).
 
 **Definition of done (ASSUMPTIONS #5a):** the **product** is the unit — done = **2+ approved images** for that SKU, stored and served by the per-SKU lookup. "On the product page" is out of scope (#4); status ends at *approved & ready*.
+
+> **A tension worth keeping in view (#4c):** a product page uses about **three** images, so a product can be *done* and still render one short. These are deliberately two signals — **done** is the brief's own floor and the number Maya counts; **thin gallery** is a quality nudge with a price tag that never blocks a launch. If most products settle at exactly 2, the two numbers have drifted apart and one of them should move.
 
 ## Facts that constrain the design
 
 - **Luma image edit** (`uni-1`, `type: image_edit`): takes the white-background photo as `source` plus a prompt; keeps parts of the image the prompt doesn't mention. Up to 8 `image_ref` images. Async: submit, then poll; typically 30–60s.
 - **Cost:** `uni-1` edit $0.0434/image · `uni-1-max` edit $0.1030/image (+$0.003 per extra reference image). Failed or moderated generations are refunded.
-- **Output size** comes from the source image. Product photos are 2048×2048 JPEGs, so outputs are square unless we crop or use a different mode.
+- **Output size** comes from the source image. Product photos are 2048×2048 JPEGs, so outputs are square unless we crop or use a different mode. **This makes source dimensions an invariant worth guarding:** one non-square upload silently changes the aspect ratio of everything generated for that product afterwards (#11, #15, Flow 6).
 - All 40 photo URLs in the export are publicly reachable (checked 2026-09-12).
 
 ---
@@ -120,11 +126,11 @@ Options:
 - **B. Batched on import.** Each CSV import creates a batch.
 - **C. Queue with priority.** Priority is set by notes ("do this one first", bestseller, Q4) or chosen by Ellie.
 
-Settled (ASSUMPTIONS #7): Notes are context for drafting and are shown in review; they never trigger automatic rules. Priority is a manual flag set by Ellie; priority items sort first everywhere and are named in status reports.
+Settled (ASSUMPTIONS #7): Notes are context for drafting and are shown in review; they never trigger automatic rules. Priority is a manual flag; priority items sort first everywhere and are named in status reports. Setting it **follows the approval rule** — an approver in one tap, anyone else with force-approve friction.
 
 Settled (ASSUMPTIONS #8): No special handling. Ideas are drafted for all blank products; idea review has Skip and Archive actions.
 
-**Decision:** _TBD_
+**Decision (USER_FLOWS Flows 1, 2, 4):** **B + C.** Each CSV import creates a **named drop** (Flow 1), which is the unit status reports on and the unit that reports itself daily while open (Flow 4). Within a drop, ordering is **priority first, then the file's own order**; decided cards collapse in place so the queue shrinks as it is worked (Flow 2). **A is rejected, because nothing needs to be continuous** — drops happen a handful of times a year (#2b), so a queue that is always open would be empty most of the year and is the wrong shape for how this team actually works.
 
 ### Step 3. Sending to the photographer → generation
 **Today:** The wishlist goes to a freelancer; shots come back weeks later.
@@ -141,7 +147,7 @@ Settled:
 - Strict product-preservation prompt.
 - No automated accuracy check; it's deferred (#14).
 
-**Decision:** _TBD_
+**Decision (USER_FLOWS Flows 2 and 3):** **B.** Approving an idea starts that product's generation **immediately** — no separate "now generate" gate, because the idea gate *is* the spend gate (#3) and a second button would quietly mean the same thing. Generation takes 30–60s per image, so candidates start arriving while the idea queue is still being worked; the two overlap by design. **C is rejected:** a preview round is a third decision point for a person who already has two (#1), and at $0.0434 an image the saving does not pay for the extra tap. Replacing a source photo also generates immediately, and resets the round counter (Flow 6).
 
 ### Step 4. Candidates coming back
 **Today:** Candidates arrive by email as attachments, links, or zips.
@@ -153,7 +159,7 @@ Options:
 - **A.** All candidates stored in one place, named by SKU and request.
 - **B.** An automatic quality check before anything reaches Ellie (e.g., a vision model compares to the original photo, flags a warped product or wrong color).
 
-**Decision:** _TBD_
+**Decision (USER_FLOWS Flows 3, 5, 6, 7):** **A. B is deferred** (#14, #14a, Part 4). Candidates live in our storage, SKU-named, each recording its idea, round, model, cost, origin, and **source photo version** (#11). Only *approved* images get an immutable public URL and enter the per-SKU lookup — candidates are never served (#4). Photographer uploads enter the identical flow, differing only in recorded origin (#16). Because B is deferred, **`[Compare with source]` on the candidate message is the only fidelity check in the system**, which is why it is a first-class button rather than a detail.
 
 ### Step 5. Review and approval
 **Today:** Ellie forwards favorites to Slack, and her pick is final. Picks get lost across Slack threads and email.
@@ -167,13 +173,15 @@ Options for how approval looks inside Slack (was: where Ellie approves):
 - **C. Google Sheet.** Thumbnails in cells, approve by dropdown or checkbox. Weak on a phone.
 - **D. Mobile web page linked from Slack or email.** Nothing to install, but it's one more place to go. Risks repeating the dashboard nobody used.
 
-Settled (ASSUMPTIONS #1): Ellie is the default one-tap approver; anyone can force-approve with extra friction; every approval records who approved and whether it was forced; comments are optional.
+Settled (ASSUMPTIONS #1): **approver** is a configurable role (default: whoever invites the bot); one tap for them, force-approve with a required sentence for anyone else; every approval records who, whether it was forced, and why; comments are optional.
 
-Settled (ASSUMPTIONS #2a): **A. Slack, in a dedicated review channel.** Candidates are public so the team can weigh in and force-approvers can find the queue. One message per request carries all of that product's candidates, so the 40-product drop is ~40 messages, not ~160. Discussion happens in the thread. Still open: whether idea review shares this channel.
+Settled (ASSUMPTIONS #2a, #2b): **A. Slack, in one review channel — shared with idea review.** Candidates are public so the team can weigh in and force-approvers can find the queue. One message per request carries all of that product's candidates. Drops happen a handful of times a year, so the channel reads as a record of each drop rather than a crowded queue (#2b).
 
-Sub-questions: Does rejecting ask for a reason, and does that reason feed a retry ("too staged")? What about "almost — make it warmer"?
-
-**Decision:** _TBD_
+**Decision (USER_FLOWS Flow 3):**
+- **Presenting candidates:** a numbered 2×2 **contact sheet to triage**, then **full size beside the source photo to decide**. This is the one place the design breaks its own one-tap rule, deliberately — with QC deferred, that comparison is the only fidelity check there is.
+- **Approve per image, reject per round.** A per-image rejection carries almost no information; what matters is whether the round produced two keepers, and when it did not the fault is usually the idea (#5a).
+- **Rejecting is free; spending again is not.** `[None of these]` is one tap with no reason asked — rejections are public (#2a) and justifying a taste call to the team is friction in the wrong place. `[Generate 4 more]` asks what should be different before it spends, which also answers "almost — make it warmer" and makes round two differ from round one. `[More like the one I approved]` covers the short-round case without typing.
+- **Force-approve friction is a required sentence** saying why, posted publicly with the approval. A confirm dialog is friction someone in a hurry taps through; typing cannot be done absent-mindedly, and it is the only friction that *produces* something — the audit trail #1 promised is honest only if it records why.
 
 ### Step 6. Filing the winners
 **Today:** Winners go to a shared Drive folder with camera filenames.
@@ -247,7 +255,7 @@ To keep or cut. Each needs a reason either way.
 - [x] **Photographer upload (ASSUMPTIONS #2, USER_FLOWS Flow 5).** Drop the photo in the channel; the bot asks which product and which kind — a finished shot for review, or a new source photo — each described by what it does next rather than by name. Shots enter the normal approval flow with `origin: photographer` and the AI question asked, never inferred (#16). **Two routes for a freelancer:** invite them as a channel guest, or have a team member upload on their behalf — the second is the default recommendation, since a guest sees every candidate, rejection and spend figure. A separate upload channel is in Part 4.
 - [x] **Pending-decisions email digest — deferred to Part 4 (USER_FLOWS Flow 4).** Designed, not built. It needs no web app: it is a read-only summary of data this flow already assembles. The reason for deferring is that email was going to be "the thing that comes to you", and the drop's daily post plus nudges now do that inside Slack. It still uniquely reaches someone who has stopped opening Slack — build it when items start being force-approved repeatedly.
 - [x] **Archive SKUs (ASSUMPTIONS #6).** Hide a product from queues, status, and idea drafting without deleting it; restorable. **Archive means "not right now," not "dead"** — an import containing an archived SKU unarchives it (USER_FLOWS Flow 1). Open: do archived products' approved images keep being served by the CDN lookup?
-- [ ] **Aspect-ratio variants of approved images (ASSUMPTIONS #15).** Request 4:5 / 9:16 / 16:9 for an approved square image; generate (padded source) and re-approve; served alongside the square. Core output stays square 2048×2048. Padding approach untested.
+- [ ] **Aspect-ratio variants of approved images (ASSUMPTIONS #15)** — **deferred to Part 4.** Core output stays square 2048×2048, which matches every source photo and is what a product page wants. Variants are an add-on to *approved* images, so no flow depends on them, and the padded-source approach is untested and now untested by choice. Trigger to build: someone asking for a crop of an approved image for social or ads.
 - [x] **AI provenance (ASSUMPTIONS #16).**
   - Every image stores origin (`ai` / `photographer`) plus model and source version.
   - Manual uploads have an "AI-generated?" marker.
@@ -261,27 +269,38 @@ To keep or cut. Each needs a reason either way.
 
 ## Part 4 — Out of scope / future
 
-Explicitly deferred, with the reason recorded in ASSUMPTIONS.md.
+Every item here is deferred **with a trigger**: a specific friction that, when observed, says
+build it now. A deferred item without a trigger is just a wish, and it is how a "next" list turns
+into a list nobody reads. Several of these triggers are things the system already records, so the
+answer is available rather than remembered.
 
-| Item | Why deferred | Source |
+| Item | Why it is not in scope now | **Trigger to build it** |
 |---|---|---|
-| Storefront platform connector (Shopify etc.) | Platform unknown; per-SKU CDN lookup covers it once integrated | #4a |
-| Capturing a shot idea from an ordinary Slack message (message shortcut or emoji) | The brief names "ideas get lost in Slack", but most lost ideas were for products that now get 2–3 drafted options regardless, and the sheet's Shot Idea column still reaches the system on the next import. What is genuinely lost is the *specific* idea carrying knowledge the data lacks — recoverable via the sheet or a card's thread | Flow 2, REQUIREMENTS Step 1 option B |
-| **Separate upload channel for freelancers** — a second channel the bot watches, where an outside photographer sees only their own uploads | A Slack guest in `#shot-reviews` sees every product's candidates, every rejection, the team's discussion and the spend — a lot of a small company's inner workings for someone shooting four products. Covered for now by a team member uploading on their behalf, which costs one step and exposes nothing. Right answer for a team that uses photographers regularly | #2, #2a, Flow 5 Step 3 |
-| **Robust image intake and processing** — validating and normalising uploads: dimensions, aspect ratio, background, resolution floors, colour profile, EXIF orientation, format conversion, and padding or cropping to a canonical square source | Uploads are accepted as-is with a plain warning about the effect (Flow 6, Step 4), because refusing the only photo someone has makes a tool people work around, and silently altering a product photo is the invisible change this design exists to prevent. **Signal to build it:** non-square photos actually being uploaded — visible because each source version records its dimensions | #15, #11, Flow 6 |
-| **Web-based data view** — a read-only site over the audit trail and spend data: product timelines, filtering, rejection and spend patterns over time | Genuinely powerful and beyond a one-day build. Distinct from the dashboard this team abandoned: that one asked people to go somewhere to *do their work*; this is somewhere to *look something up when something is wrong* — a visit measured in times per year. Nothing in the daily path depends on it | Flow 4, #1, #16 |
-| **Pending-decisions email digest** — read-only summary of what is waiting, daily or at a chosen frequency | Designed (Flow 4), not built. #2 wanted email because nothing came to you; the drop's daily post and nudges now do. What it still uniquely covers is the person who has stopped opening Slack — Ellie genuinely away, the scenario force-approve exists for. **Build it when** items are repeatedly force-approved, which means the channel is not reaching the decider | #2, Flow 4 |
-| Configurable report frequency (daily or weekly, per person or per install) | A drop reports itself daily while open and not at all between drops (Flow 4, Step 8). A sensible default is less to build and more likely to reach Maya than an opt-in she has to find; make it configurable when someone complains | #5, Flow 4 Step 8 |
-| **Opt-in DM nudges** — a person choosing to have their own waiting items pushed to them privately | Nudges post in the channel and name products, never people (Flow 4, Step 6): the bot should not call anyone out on a team of four. A DM path also reopens what #2a closed, so the channel version should be shown insufficient first | #2a, Flow 4 Step 6 |
-| Separate `#shot-ideas` channel | Ideas and candidates share one channel because drops happen a handful of times a year, so the channel reads as a record of each drop rather than a crowded queue. Revisit if drops become frequent or rounds start overlapping at 300 SKUs — it is a configuration change, not a redesign | #2b, Flow 2 Step 0 |
-| **Request approved images from the bot** (`/shots images HG-002`, or a whole drop) — the human-facing way to grab approved files for social, marketing, or the Q4 campaign | The replacement for Drive's actual job, without Drive. Deferred from the ~1-day build, not from the design: every image is already stored with a stable URL and an origin, so this is a command over data that exists | Flow 0 Step 8, #4, #16 |
-| Google Drive copy of approved images | **Cut, not deferred.** Storage was always canonical; the copy bought nothing and cost a service account, OAuth, folder config, and a copy-vs-canonical failure mode | Flow 0 Step 8, revises #4 |
-| Image resizing / thumbnails | Full-size approved image is enough to start | #4a |
-| Tracking discontinued products | Not our problem to solve; archive covers clutter | #6 |
-| Automatic source-photo review and touch-up | Color-shift risk, false alarms on dark products; manual replace covers it | #11 |
-| Automated candidate accuracy screening (vision-model QC before Slack) | Ellie's approval is the check for now; revisit if spend or rejection rates justify it, or if 14a proves false | #14, #14a |
-| **Systematic image-quality testing** — product accuracy on hard cases (smoke glass HG-041, multi-colour sets HG-018/HG-020), featured-product fidelity via `image_ref` (#10), and the padded-source approach for non-square ratios (#15) | We proceed assuming `uni-1` output is high quality (#14a). Rejection rates in real use are a cheaper and more honest signal than a test pass run against our own guesses about what "good" means. Revisit if approvals-per-round run low, or before relying on featured-product fidelity | #14a, #10, #15 |
-| Scheduled seasonal swaps (campaign sets with date windows) | Needs a scheduler and a set-aware lookup; a campaign end-date reminder plus one-tap revert covers the risk for now. Campaign is recorded per image, so this needs no migration later | #3b |
+| **Aspect-ratio variants of approved images** — 4:5, 9:16, 16:9 generated from an approved square image and re-approved (#15) | Square 2048×2048 matches every source photo and is what a product page wants. Variants are an add-on to *approved* images, so nothing in the seven flows depends on them, and the padded-source approach is untested — and now untested by choice | Someone asks for a crop of an approved image for social or ads. Concretely: a request that today ends with a person cropping a file by hand |
+| **Systematic image-quality testing** — product accuracy on hard cases (smoke glass HG-041, multi-colour sets HG-018/HG-020), `image_ref` fidelity (#10), padded-source ratios (#15) | We proceed on #14a. Rejection rates in real use are a cheaper and more honest signal than a test pass judged against our own guesses about what "good" means | **Approvals-per-round running low** — many candidates paid for and rejected. Also required *before* changing #10's rule so multi-product images count for featured SKUs, which is the one place no human check covers |
+| **Automated candidate accuracy screening** (vision-model QC before Slack) | An approver's eye is the check, and nothing automatic can wrongly hide a good image (#14) | A wrong-colour or warped product reaching approval, or the spend report showing repeated rounds rejected wholesale |
+| **Robust image intake and processing** — dimensions, aspect ratio, background, resolution floors, colour profile, EXIF orientation, format conversion, padding to a canonical square source | Uploads are accepted with a plain warning about the effect (Flow 6). Refusing the only photo someone has makes a tool people work around; silently altering a product photo is the invisible change this design exists to prevent | **A non-square photo actually being uploaded.** Visible without anyone remembering, because every source version records its dimensions (#11) |
+| **Automatic source-photo review and touch-up** | Colour-shift risk and false alarms on naturally dark products; manual replace covers the real cause | The same product being replaced-then-regenerated more than once — the first round came out dim and nobody could tell why until after paying for it |
+| **Pending-decisions email digest** — read-only summary of what is waiting | #2 wanted email because nothing came to you; the drop's daily post and nudges now do (Flow 4). What it still uniquely covers is someone who has stopped opening Slack | **Items repeatedly force-approved** — that means the channel is not reaching the person who should be deciding, which is exactly the gap email fills |
+| **Opt-in DM nudges** | Nudges name products, never people (Flow 4) — the bot should not call anyone out on a team of four, and a DM path reopens what #2a closed | Nudges posting and the item not moving — the stuck list repeating the same SKU across several days |
+| **Configurable report frequency** | A drop reports itself daily while open and not at all between drops. A sensible default is less to build and more likely to reach Maya than an opt-in she must find | Anyone saying the daily post is too much or not enough |
+| **Separate `#shot-ideas` channel** | Ideas and candidates share one channel because drops are a few times a year, so it reads as a record of each drop rather than a crowded queue (#2b) | **Two drops open at once**, or rounds overlapping at 300 SKUs. It is a configuration change, not a redesign |
+| **Separate upload channel for freelancers** | A Slack guest in `#shot-reviews` sees every candidate, rejection and spend figure. Covered by a team member uploading on their behalf (Flow 5) | A second photographer engagement, or anyone hesitating to invite one because of what they would see |
+| **Capturing a shot idea from an ordinary Slack message** | Most lost ideas were for products that now get drafted options anyway, and the sheet's Shot Idea column still reaches the system on the next import (Flow 2) | An idea appearing in a card's thread and never becoming an option — the thread is the place to look, and it is already attached to the product |
+| **Request approved images from the bot** (`/shots images HG-002`, or a whole drop) | Drive's actual job without Drive. Needs no new data: every image already has a stable URL and an origin | Anyone asking in the channel where to get files for social — the brief's "which files are final?" question resurfacing in a new place |
+| **Web-based data view** — read-only site over the audit trail and spend data | Beyond a one-day build. Not the dashboard this team abandoned: that asked people to go somewhere to *do their work*; this is somewhere to look something up when something is wrong | A question the CSV export cannot answer without a spreadsheet session — repeated "who approved this, and why" requests |
+| **Storefront platform connector** (Shopify etc.) | Platform unknown; the per-SKU lookup covers it once integrated (#4a) | The team names their platform, or it turns out to need uploaded assets rather than external URLs |
+| **Image resizing / thumbnails** | The full-size approved image is enough to start (#4a) | The web developer asking for smaller variants, or page weight becoming a complaint |
+| **Scheduled seasonal swaps** — *us* deciding when a season starts | Mostly dissolved: the site asks for a theme and owns the calendar (#4b, Flow 7), so there is no scheduler, nothing to expire, and no SKU left short | The web developer asking for the lookup to switch itself — i.e. wanting us to own the calendar after all |
+| **Tracking discontinued products** | Not our problem to solve; archive covers the clutter (#6) | Archive being used as a proxy for discontinued — someone asking "which of these are actually dead?" |
+
+### Cut, not deferred
+
+No trigger, because these are not waiting for anything.
+
+| Item | Why |
+|---|---|
+| **Google Drive copy of approved images** | Storage was always canonical; the copy bought nothing the storage layer did not already do, and cost a service account, OAuth, folder config, and a copy-vs-canonical failure mode. Its human-facing job is covered by "request approved images from the bot", above |
 
 ## Non-functional requirements
 
@@ -289,4 +308,23 @@ Explicitly deferred, with the reason recorded in ASSUMPTIONS.md.
 - Secrets stay out of git (`.env.local`).
 - Survives restarts: request state is stored persistently.
 - Keeps working as the catalog grows 10× (see APPROACH.md on unit economics).
-- Persistent database is the system of record (ASSUMPTIONS #3a). _TBD: stack, host, which database_
+- Persistent database is the system of record (ASSUMPTIONS #3a).
+
+### What the seven flows require of the stack
+
+Collected from USER_FLOWS.md, as the input to the stack decision rather than a decision itself.
+
+| Requirement | Where it comes from |
+|---|---|
+| **Public HTTPS endpoint** for Slack events and interactivity, acknowledging within Slack's ~3s window and doing the real work after | Every flow |
+| **Slack surface beyond posting:** buttons, modals (idea editing, upload kind, force-approve reason), **message updates in place** (decided cards collapse), threads, slash commands, and **file downloads from Slack** (CSV and images arrive as authenticated URLs) | Flows 1, 2, 3, 5, 6 |
+| **Background work on two rhythms:** short polling for generations (30–60s, several in parallel), and scheduled jobs for the drop's daily post, nudge thresholds, and stuck-item detection | Flows 3, 4 |
+| **Object storage with immutable public URLs**, plus a small read API on the **page-render path** — it must not fail, and its response is short-cached while the image URLs cache forever | Flow 7, #4 |
+| **Server-side image compositing** for the 2×2 numbered contact sheet | Flow 3, Step 2 |
+| **Writing embedded provenance metadata** into stored AI-origin images (IPTC digital source type / C2PA-style) | #16 |
+| **Outbound calls:** Luma (async submit + poll), Slack, and fetching catalogue photo URLs at import | Flows 1, 3 |
+| **An event log** alongside product state — two different shapes, exported separately | Flow 4, #1, #16 |
+| **An LLM** for idea drafting and expansion (cents per batch, not a hot path) | #3, #9 |
+
+**Explicitly not needed:** a web application, user accounts, a Google service account, a
+scheduler that owns a campaign calendar (#4b), or any storefront credentials.

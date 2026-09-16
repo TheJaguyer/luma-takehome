@@ -4,8 +4,13 @@
 > Requirements say *what* the system does and why. This document walks a person
 > through it message by message, so gaps show up before the build rather than during it.
 >
-> Status: **All seven flows complete.** Every decision they raised is settled.
-> Items marked **[OPEN]** carry options only; nothing is decided until a **Decision** line is filled in.
+> Status: **All seven flows complete.** Every decision they raised is settled, with the rejected
+> options and their costs kept alongside each one — a decision without its alternatives is
+> hard to revisit honestly.
+>
+> Writing these settled most of what REQUIREMENTS left open, amended a dozen entries in
+> ASSUMPTIONS, and forced four new assumptions into the open (#2b, #4b, #4c, and the revision
+> to #5).
 
 ## Conventions
 
@@ -15,6 +20,8 @@
 - `[Button]` is a Slack action button. Everything must work one-handed on a phone.
 - Each flow states its **trigger**, **preconditions**, **exit state**, and the flow it hands off to.
 - References like (#12) point at the numbered entries in ASSUMPTIONS.md.
+- Where a decision has a known weakness, it is written down along with **the signal that would
+  mean it was wrong** — several of those became the triggers in REQUIREMENTS Part 4.
 
 ## Flow index
 
@@ -290,92 +297,6 @@ channels is a path we would have to invent, and a team that outgrows its first c
 be stuck with a choice made in their first two minutes.)*
 *(Rejected: allowing a second live channel. It contradicts #2a's one-channel default and adds
 a channel dimension to every message, status scope, and approver rule.)*
-
-## Step 8 — Multi-product shots, on approval
-
-**Decision (3.4): an approved multi-product image counts for the primary SKU only. Featured
-SKUs get it as a *related* image — available, not counted, not primary.** This resolves the
-question #10 left open.
-
-```
-✅  HG-002 is done — 2 approved images, live now.
-     This one also features HG-011 (Waffle Throw). It's attached to HG-011
-     as a related image; it doesn't count toward its 2.        [Why?]
-```
-
-The reason is fidelity, and it is the one place deferring image-quality testing has a cost we
-can name in advance. The primary SKU's photo is the edit `source`, so it is the product the
-model is actually preserving (#14). Featured SKUs go in as `image_ref`, and **how faithfully
-`image_ref` reproduces a product is unverified — and now untested by choice** (#14a). Counting
-an image toward a SKU that was never the source means a product could reach **done** (#5a) on a
-shot where its own colour or shape is subtly wrong, and nothing downstream would catch it.
-
-So the rule is: **a product is only ever counted on images it was the source for.** Where it is
-counted, it is guaranteed to have been preserved.
-
-- The image is still **attached** to every featured SKU, so a set shot is findable from any
-  product in it and can be used on the site deliberately.
-- It is **not primary** in a featured SKU's lookup, so nothing unverified becomes that product's
-  main image by accident.
-- Grouping therefore helps the *site* more than it helps the *queue*, which is the honest
-  trade — and #10's argument for grouping was always about how styled sets get used, not about
-  clearing the queue faster.
-
-**Explicitly tied to the deferred testing.** If `image_ref` fidelity proves good, counting for
-every SKU becomes a setting rather than a redesign — the data model already relates an image to
-several products (#10). That check is the first item in Part 4's image-quality testing, and it
-is the one place there where not testing is costing something concrete rather than theoretical.
-
-## What this flow deliberately does not do
-
-**Decision (4.3): no email digest for now. Designed, recorded as next, not built.** #2 left it
-as "email as a digest only, to be designed", and the design is above — a read-only summary of
-pending decisions, built from exactly the data this flow already assembles. What changed is the
-need for it.
-
-When #2 wrote that line, the only way to learn anything was to go and look. This flow closed
-that gap in Slack: the drop posts its own progress daily (Step 8), and nudges surface stuck
-items without being asked (Step 6). **Email was going to be the thing that comes to you, and now
-something already does.**
-
-What it still leaves uncovered, honestly: the person who has stopped opening Slack. Every push
-this flow builds lands in a channel, so someone genuinely away — Ellie on holiday, which is the
-scenario force-approve exists for (#1) — is reached by nothing. That is the case email answers
-and nothing else here does.
-
-It is deferred rather than cut because it is cheap to add later and the data is already shaped
-for it. **The signal to build it:** items sitting long enough to be force-approved, repeatedly.
-That means the channel is not reaching the person who should be deciding. Recorded in
-REQUIREMENTS Part 4.
-
-**Decision (4.4): the audit trail is recorded and exported, but gets no browsable surface.**
-
-Everything #1 and #16 require is captured — there is no question of *whether* it is kept:
-
-| Recorded | Source |
-|---|---|
-| Who approved each idea and each image, when, whether it was forced, and the **reason given** when it was | #1, Flow 3 Step 6 |
-| Who accepted each pending change on an import | #12, Flow 1 Step 6 |
-| Who triggered each generation, with model, round, and cost | #13 |
-| Origin (`ai` / `photographer`), the AI-generated marker on uploads, and the source photo version | #16, #11 |
-| The campaign theme each idea was drafted under | #3b |
-| Every change to a product's live image set, and every revert | #4 |
-
-What it does not get is a `[History]` view to scroll. Nobody browses an audit trail until
-something has gone wrong, and the questions actually asked in that moment are already answered
-where they happen: a forced approval shows its reason inline wherever it appears, and the
-live-change notice names who approved and offers the revert (#4). The full record is there for
-the case those two do not cover, and a **CSV export** is a perfectly good way to read it — the
-product export carries current state and who last approved; the full event log exports
-separately, because events and products are different shapes and forcing them into one file
-serves neither.
-
-**Next, not now: a web-based data view.** A read-only site over this data could be genuinely
-powerful — filtering, product timelines, spend and rejection patterns over time — and it is
-beyond a one-day build. Worth being precise about why this is not the dashboard Maya's team
-abandoned: that one asked people to go somewhere to **do their work**. This would be somewhere
-to **look something up when something is wrong**, which is a visit measured in times per year,
-not times per day. Nothing in the daily path would depend on it. Recorded in REQUIREMENTS Part 4.
 
 ## Branches and failure cases
 
@@ -1095,7 +1016,7 @@ Recorded in REQUIREMENTS Part 4. A message shortcut is the natural shape if it c
 ## Requirements this flow exercises
 
 ASSUMPTIONS #1 (approver, force-approve, optional comments) · #2a (**resolves its open
-question**, Step 0) · #2b (drop cadence) · #3 (idea gate before spend) · #3b (house style and campaign
+question**, see *Where this happens*) · #2b (drop cadence) · #3 (idea gate before spend) · #3b (house style and campaign
 theme) · #5a (short rounds, stuck items) · #7 (notes and priority) · #8 (skip and archive) ·
 #9 (expand vs draft, structured options) · #10 (multi-product grouping) · #13 (candidates
 per round, cost per generation).
@@ -1365,6 +1286,41 @@ origin is never inferred from upload method (#16).
 
 A freelancer is invited to the channel when one is used, which means they can see the queue
 they are contributing to — and nothing else changes.
+
+## Step 8 — Multi-product shots, on approval
+
+**Decision (3.4): an approved multi-product image counts for the primary SKU only. Featured
+SKUs get it as a *related* image — available, not counted, not primary.** This resolves the
+question #10 left open.
+
+```
+✅  HG-002 is done — 2 approved images, live now.
+     This one also features HG-011 (Waffle Throw). It's attached to HG-011
+     as a related image; it doesn't count toward its 2.        [Why?]
+```
+
+The reason is fidelity, and it is the one place deferring image-quality testing has a cost we
+can name in advance. The primary SKU's photo is the edit `source`, so it is the product the
+model is actually preserving (#14). Featured SKUs go in as `image_ref`, and **how faithfully
+`image_ref` reproduces a product is unverified — and now untested by choice** (#14a). Counting
+an image toward a SKU that was never the source means a product could reach **done** (#5a) on a
+shot where its own colour or shape is subtly wrong, and nothing downstream would catch it.
+
+So the rule is: **a product is only ever counted on images it was the source for.** Where it is
+counted, it is guaranteed to have been preserved.
+
+- The image is still **attached** to every featured SKU, so a set shot is findable from any
+  product in it and can be used on the site deliberately.
+- It is **not primary** in a featured SKU's lookup, so nothing unverified becomes that product's
+  main image by accident.
+- Grouping therefore helps the *site* more than it helps the *queue*, which is the honest
+  trade — and #10's argument for grouping was always about how styled sets get used, not about
+  clearing the queue faster.
+
+**Explicitly tied to the deferred testing.** If `image_ref` fidelity proves good, counting for
+every SKU becomes a setting rather than a redesign — the data model already relates an image to
+several products (#10). That check is the first item in Part 4's image-quality testing, and it
+is the one place there where not testing is costing something concrete rather than theoretical.
 
 ## Branches and failure cases
 
@@ -1661,7 +1617,56 @@ thing to add when someone complains, not before. Recorded in REQUIREMENTS Part 4
 > **Revises ASSUMPTIONS #5**, which had scheduled delivery as optional and off by default.
 > During a drop it is now on by default; between drops there is nothing to deliver.
 
-## Open decisions raised by this flow
+## What this flow deliberately does not do
+
+**Decision (4.3): no email digest for now. Designed, recorded as next, not built.** #2 left it
+as "email as a digest only, to be designed", and the design is above — a read-only summary of
+pending decisions, built from exactly the data this flow already assembles. What changed is the
+need for it.
+
+When #2 wrote that line, the only way to learn anything was to go and look. This flow closed
+that gap in Slack: the drop posts its own progress daily (Step 8), and nudges surface stuck
+items without being asked (Step 6). **Email was going to be the thing that comes to you, and now
+something already does.**
+
+What it still leaves uncovered, honestly: the person who has stopped opening Slack. Every push
+this flow builds lands in a channel, so someone genuinely away — Ellie on holiday, which is the
+scenario force-approve exists for (#1) — is reached by nothing. That is the case email answers
+and nothing else here does.
+
+It is deferred rather than cut because it is cheap to add later and the data is already shaped
+for it. **The signal to build it:** items sitting long enough to be force-approved, repeatedly.
+That means the channel is not reaching the person who should be deciding. Recorded in
+REQUIREMENTS Part 4.
+
+**Decision (4.4): the audit trail is recorded and exported, but gets no browsable surface.**
+
+Everything #1 and #16 require is captured — there is no question of *whether* it is kept:
+
+| Recorded | Source |
+|---|---|
+| Who approved each idea and each image, when, whether it was forced, and the **reason given** when it was | #1, Flow 3 Step 6 |
+| Who accepted each pending change on an import | #12, Flow 1 Step 6 |
+| Who triggered each generation, with model, round, and cost | #13 |
+| Origin (`ai` / `photographer`), the AI-generated marker on uploads, and the source photo version | #16, #11 |
+| The campaign theme each idea was drafted under | #3b |
+| Every change to a product's live image set, and every revert | #4 |
+
+What it does not get is a `[History]` view to scroll. Nobody browses an audit trail until
+something has gone wrong, and the questions actually asked in that moment are already answered
+where they happen: a forced approval shows its reason inline wherever it appears, and the
+live-change notice names who approved and offers the revert (#4). The full record is there for
+the case those two do not cover, and a **CSV export** is a perfectly good way to read it — the
+product export carries current state and who last approved; the full event log exports
+separately, because events and products are different shapes and forcing them into one file
+serves neither.
+
+**Next, not now: a web-based data view.** A read-only site over this data could be genuinely
+powerful — filtering, product timelines, spend and rejection patterns over time — and it is
+beyond a one-day build. Worth being precise about why this is not the dashboard Maya's team
+abandoned: that one asked people to go somewhere to **do their work**. This would be somewhere
+to **look something up when something is wrong**, which is a visit measured in times per year,
+not times per day. Nothing in the daily path would depend on it. Recorded in REQUIREMENTS Part 4.
 
 ## Branches and failure cases
 
@@ -1813,7 +1818,7 @@ for a rare participant. Recorded in REQUIREMENTS Part 4.
 
 **Trigger:** someone chooses "a new product photo" in Flow 5, Step 1 — or acts on a product
 flagged **needs a source photo** (Flow 1, Step 5), or accepts a photo change from a CSV import
-(Flow 1, Step 6). All three roads arrive here, and from Step 3b onward they behave identically.
+(Flow 1, Step 6). All three roads arrive here, and from Step 4 onward they behave identically.
 
 **Exit state:** the product has a new current source photo version. Every earlier version is
 kept, and every image ever generated still records which version it came from (#11).
@@ -1862,9 +1867,7 @@ A product flagged **needs a source photo** (Flow 1, Step 5) is blocked here and 
 idea can be approved, but no generation starts. Uploading the photo clears the flag *and* runs the
 round that was waiting — one gesture from stuck to candidates in the channel about a minute later.
 
-## Open decisions — Flow 6
-
-## Step 3b — When the product already has approved images
+## Step 4 — When the product already has approved images
 
 **Decision (6.1): ask what should happen to them — keep, or start over.** The question is only
 asked when there is something to ask about; a product with no approved images just gets replaced
@@ -1910,7 +1913,7 @@ rather than having its own keep/replace re-review — same photo change, same co
 interaction to learn. #12's re-review was the right idea described before there was a flow to put
 it in.
 
-## Step 4 — When the photo is not square
+## Step 5 — When the photo is not square
 
 **Decision (6.2): accept it, and say plainly what it will do.** Luma takes its output dimensions
 from the source (#15), so every product photo being 2048×2048 is the only reason this pipeline

@@ -2,10 +2,14 @@
 
 Questions I'd ask the team if I could, the assumption I proceeded on instead, and what that assumption changed about what I built.
 
-> Status: **All 16 initial questions answered.** Entries marked **[revised]** were changed by
-> writing the flows in [USER_FLOWS.md](USER_FLOWS.md) — the original reasoning is kept, with
-> what changed and why recorded underneath, because the reason an assumption failed is worth
-> more than the assumption.
+> Status: **All 16 initial questions answered, plus four that writing the flows forced into the
+> open** — #2b (how often a drop happens), #4b (the site knows what it lists and asks by theme),
+> #4c (how many images a product page uses), and the sub-entries under #3b, #4, #5 and #14.
+>
+> Entries marked **[revised]** were changed by walking the flows in [USER_FLOWS.md](USER_FLOWS.md).
+> **The original reasoning is kept in place**, with what changed and why recorded underneath —
+> because the reason an assumption failed is worth more than the assumption, and an assumption
+> quietly rewritten to match the outcome teaches nobody anything.
 
 Format for each entry:
 - **Question:** what I'd ask
@@ -195,7 +199,7 @@ Format for each entry:
 - **What it changed:**
   - Notes are passed as context into idea drafting and displayed in Slack review messages.
   - No LLM classification of notes; no automatic priority from import.
-  - **Manual priority flag:** Ellie can mark products as priority. Priority items sort to the top of every queue and list, and are called out by name in status reports and scheduled updates.
+  - **Manual priority flag:** products can be marked priority (see the resolved note below for who). Priority items sort to the top of every queue and list, and are called out **by name** in status reports and the drop's own daily post — "2 priority items are waiting" is not actionable, and "HG-002 is waiting" is.
   - ~~Open: can others set priority too, or only Ellie?~~ **[resolved] Priority follows the approval rule, exactly.** An approver sets or clears it in one tap; anyone else can, with the same force-approve friction — a required sentence saying why, recorded and posted publicly (#1, USER_FLOWS Flow 3 Step 6). **One rule, everywhere a decision is made:** approving an idea, approving an image, promoting an image to primary, and setting priority all behave identically. That is one thing to learn instead of four, and it means no decision in the system can be made anonymously or without friction by someone who is not the approver.
 
 ### 8. Should HG-032 ("discontinued after spring?") be skipped?
@@ -257,7 +261,7 @@ Format for each entry:
   - **Blank cells never erase** existing data.
   - Approvals, candidates, priority, and archive state are never touched by an import.
   - **Re-review queue:** when an accepted change hits a SKU that already has approved images, those images enter a brief re-review ("still accurate?": keep / replace). Images stay live while they wait, so the site doesn't lose images mid-review.
-    - **[revised — USER_FLOWS Flow 6, Step 3b]** This is now the *same question* asked when someone replaces a source photo manually, rather than a separate re-review of its own: **keep them**, or **start over** (back to ideation and generation for that SKU). Same photo change, same consequence, one interaction to learn — the re-review was the right idea described before there was a flow to put it in. The question is phrased as the action rather than as "did the product change?", because that asks someone to make a judgement and then map it to a consequence they cannot see. On **start over**, the old images stay live and are flagged in status as "from the previous photo"; once the SKU has 2+ newly approved images, a one-tap **retire the older images** appears, which is itself a live change and carries the usual notice and revert (#4). Nothing is deleted.
+    - **[revised — USER_FLOWS Flow 6, Step 4]** This is now the *same question* asked when someone replaces a source photo manually, rather than a separate re-review of its own: **keep them**, or **start over** (back to ideation and generation for that SKU). Same photo change, same consequence, one interaction to learn — the re-review was the right idea described before there was a flow to put it in. The question is phrased as the action rather than as "did the product change?", because that asks someone to make a judgement and then map it to a consequence they cannot see. On **start over**, the old images stay live and are flagged in status as "from the previous photo"; once the SKU has 2+ newly approved images, a one-tap **retire the older images** appears, which is itself a live change and carries the usual notice and revert (#4). Nothing is deleted.
   - **[revised — USER_FLOWS Flow 1, Step 6] Pending changes bulk-accept, except photos.** Detail changes (price, name, category, colour, material, notes) can be accepted together: wrong is wrong, but it is text in a database and nothing goes live. **Photo changes are always individual**, because a new photo creates a source version and can send approved images to re-review — the exact path to "the wrong image was live for three weeks." The two are counted and presented separately so a bulk accept can never quietly include a photo, and a SKU changing both splits across the two groups. Every accept is attributed, bulk or not. Rationale for having a bulk path at all: a thirty-card list is what makes people tap through without reading, which costs the review its entire purpose.
   - **[revised — USER_FLOWS Flow 1, Steps 3–5] Re-import is the repair path, and it is safe.** Unchanged rows are no-ops and SKUs match by key, so **re-dropping the same file is idempotent**. That matters because "fix the bad rows in the sheet and export again" is what a person actually does, and it keeps the sheet authoritative through the transition (#3a) with no per-row editing UI in Slack — which would write the correction to the database but not the sheet, so the next export would re-break the same row.
   - Import summary in Slack, e.g., "12 new · 3 changes to review · 2 new ideas · 2 rows rejected."
@@ -287,8 +291,8 @@ Format for each entry:
   - No automated QC system. Ellie will see and reject bad candidates herself.
   - **Out of scope / future:** an automated accuracy check (vision model comparing candidate to source and idea before it reaches Slack). A natural trigger to revisit: spend reports (#13) or rejection rates show the team is paying for, and spending attention on, many inaccurate candidates.
 
-#### 14a. (Temporary) Luma's image edit is highly accurate at preserving the product
-- **Assumption:** Until tested, we assume `uni-1` image edit reproduces the source product accurately in most generations, so manual review alone is manageable.
+##### 14a. Luma's image edit is highly accurate at preserving the product
+- **Assumption:** `uni-1` image edit reproduces the source product accurately in most generations, so manual review alone is manageable. **We proceed on this rather than testing it first** — it was labelled temporary when written, and is now a deliberate standing assumption with a trigger for revisiting.
 - **Why:** Luma's docs say image edit "preserves the parts of the image you did not mention." We haven't run generations on this catalog yet.
 - **What it changed:** Justifies deferring automated QC. ~~**Revisit after test generations**~~
 - **[revised]** We proceed on this assumption rather than testing it first: **systematic image-quality testing is a next/future item, not a gate on the design.** The reasoning is that rejection rates in real use are a cheaper and more honest signal than a test pass judged against our own guesses about what "good" means — and the design already routes every candidate past a person who knows these products (#14), so a bad generation cannot reach a customer either way. **Revisit** if approvals-per-round run low, or before relying on featured-product fidelity (#10), which is the one place this assumption is doing work no human check covers cheaply. If accuracy turns out to be poor, automated screening or a `uni-1-max` default moves back into scope.
@@ -298,9 +302,7 @@ Format for each entry:
 - **Why:** Luma image edit ignores `aspect_ratio`; output dimensions come from the source photo, and every source is 2048×2048. Product pages are the core use. Social and the Q4 campaign need other shapes, but only for shots the team already likes, so generating ratios after approval keeps spend tied to proven images.
 - **What it changed:**
   - Core pipeline produces square images only; the CDN lookup (#4) serves square by default.
-  - **Extra: aspect-ratio variants of approved images.** Requested per approved image, generated from the same approved idea (likely by padding the source photo to the target ratio), and sent through a quick re-approval. Stored and served alongside the square original.
-  - A ratio variant is a new generation, not a crop, so it won't be pixel-identical to the approved square image. That's why it needs re-approval.
-  - **Unverified:** whether padding the source produces good scenes in wide or tall frames. Test before committing.
+  - ~~**Extra: aspect-ratio variants of approved images.**~~ **[revised] Deferred to Part 4 — square only.** The design stands: a variant would be requested per approved image, generated from the same approved idea (likely by padding the source to the target ratio), re-approved because it is a new generation rather than a crop, and served alongside the square original. It is out of scope because **no flow depends on it** — square matches every source photo and is what a product page wants, and variants only ever apply to images already approved. The padded-source approach is also **unverified, and now untested by choice** (#14a), so building on it would mean building on a guess. **Trigger to build it:** someone asking for a crop of an approved image for social or ads — concretely, a request that today ends with a person cropping a file by hand.
 
 ### 16. Is it acceptable for customers to see AI-generated lifestyle images? Any disclosure needed?
 - **Assumption:** Using AI images on product pages is acceptable. The team chose AI generation, the product itself must be accurate (#14), and only the scene is synthetic. **Whether and how to disclose it to shoppers is the team's decision, not ours.** Our job is to make sure the data exists so they can decide at any time.
