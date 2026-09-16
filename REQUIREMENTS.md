@@ -21,7 +21,7 @@
 - [ ] **#7 — Priority:** only Ellie can set it, or anyone (consistent with force-approve in #1)?
   - Note: **approver** is now an explicit configurable role (#1, Flow 0), so this probably
     resolves to "only an approver" — still open.
-- [ ] **#10 — Multi-product shots:** does an image count toward each featured SKU's 2–3 approved images, and does it appear in each featured SKU's CDN lookup or only the primary's?
+- [x] **#10 — Multi-product shots: settled (Flow 3, Step 8).** Counts for the **primary SKU only**; featured SKUs get it as a related image — attached, not counted, never primary. A product is only counted on images it was the `source` for, since `image_ref` fidelity is unverified. Revisit if image-quality testing (Part 4) shows it is good.
 - [ ] **#12 — Interpretation check:**
   - New shot ideas from import skip change-review but still go through idea review.
   - Approved images stay live during re-review.
@@ -33,9 +33,9 @@
 - [ ] **Step 4:** Candidate storage and naming (SKU/request-based); photographer uploads enter the same flow (#2).
 - [ ] **Step 5:** Approval UX inside Slack (channel settled in #2a; idea review shares it, #2b):
   - Presenting multiple candidates in one message on a phone.
-  - Reject flow: reason or not (#2a argues against requiring one).
-  - "Almost — make it warmer" refinement.
-  - Force-approve friction (#1).
+  - ~~Reject flow: reason or not~~ — settled (Flow 3, Step 5): free to reject, required to regenerate.
+  - ~~"Almost — make it warmer" refinement~~ — settled: that sentence is what `[Generate 4 more]` asks for, and `[More like the one I approved]` covers the common case without typing.
+  - ~~Force-approve friction (#1)~~ — settled (Flow 3, Step 6): a required sentence saying why, posted publicly with the approval.
 - [ ] **Part 2:** Fill the remaining rows of Maya's asks table ("AI just make the shots", "Ellie approves on her phone", "40-product drop").
 - [ ] **Part 3 extras, keep or cut each with a reason:**
   - [x] CSV import entry point — **settled: Slack file drop** (USER_FLOWS Flow 1, Step 1). **Must be demoed in the video.**
@@ -55,16 +55,12 @@
 - [ ] **Non-functional:** stack, host, database, and object storage (Slack webhooks need a public URL). **No Google service account needed** now that Drive is cut.
 - [ ] **Prioritize for the ~1-day build:** mark each confirmed item as in / out / next.
 
-### C. Validate with real Luma generations (~$0.50) before locking the design
-- [ ] **#14a — Product accuracy of `uni-1` image edit.** Hard cases:
-  - Smoke glass HG-041.
-  - Multi-color sets HG-018 / HG-020.
-  - A simple baseline, e.g., HG-002.
-  
-  If poor, automated QC or a `uni-1-max` default may return to scope.
-- [ ] **#10 — Featured-product accuracy via `image_ref`**, e.g., HG-011 throw + HG-002 mug, or HG-034 soap dispenser + HG-035 towel.
-- [ ] **#15 — Padded-source approach for non-square ratios** (4:5, 9:16, 16:9).
-- [ ] Record observed latency and cost per image for APPROACH.md unit economics.
+### C. Validate with real Luma generations
+> **No longer blocking.** We proceed on #14a as written: `uni-1` image edit reproduces the
+> product accurately in most generations, so manual review alone is manageable. Systematic
+> image-quality testing moves to Part 4 (next/future) rather than gating the design.
+- [ ] Record observed latency and cost per image for APPROACH.md unit economics — from the
+  build's own runs, not a separate test pass.
 
 ## Who we're building for
 
@@ -214,11 +210,11 @@ Note: We have no site integration, so "on the product page" can't be verified au
 
 | Ask | Covered by | Decision |
 |---|---|---|
-| "AI just make the shots people put in the sheet" | Steps 1–3 | _TBD_ |
-| "Ellie approves them on her phone somehow" | Step 5 | _TBD_ |
+| "AI just make the shots people put in the sheet" | Steps 1–3 | Sheet ideas import and are expanded into 2–3 concrete options (#9); blank products get three drafted (#3). Nothing generates until an idea is approved (USER_FLOWS Flows 1–2) |
+| "Ellie approves them on her phone somehow" | Step 5 | Slack, one card per product, contact sheet to triage and full size beside the source photo to decide. One tap to reject a round; a sentence required only to spend again (USER_FLOWS Flow 3) |
 | "Don't burn our budget on stuff she'll reject" | Steps 3–4 (gating, previews, QC) | Idea approval before any image (#3); per-product round limits, spend visibility, warning thresholds, spend comparison reports (#13). QC TBD (#14) |
 | "See where things stand without having to ask Ellie" | Status surface, see Part 3 | On-demand Slack status command (overall / drop / SKU); optional scheduled delivery (ASSUMPTIONS #5) |
-| "40-product drop… launch with styled shots" | CSV import + idea generation | _TBD_ |
+| "40-product drop… launch with styled shots" | CSV import + idea generation | Drop the CSV in Slack; it becomes a named drop with a campaign theme asked once, ~37 drafted ideas, then candidates arriving about a minute after each idea approval. Progress and spend per drop via `/shots status <drop>` (USER_FLOWS Flows 1–3, #2b) |
 
 ## Part 3 — Extras and quality-of-life candidates
 
@@ -241,8 +237,8 @@ To keep or cut. Each needs a reason either way.
   - An accepted change on a SKU with approved images triggers re-review (images stay live meanwhile).
 - [x] **Handling Notes (ASSUMPTIONS #7).** Context only: fed into idea drafting and shown in review. No automatic parsing.
 - [x] **Priority flag (ASSUMPTIONS #7).** Set by Ellie; top of every queue and list; called out in status and scheduled reports.
-- [x] **Multi-product scenes (ASSUMPTIONS #10).** Group multiple SKUs into one shot: the primary SKU is the edit source, featured SKUs go in as `image_ref`. Easy grouping in idea review. Needs a fidelity test. Open: does it count toward, and appear in, featured SKUs' image sets?
-- [ ] **Retry with feedback.** A rejection reason feeds back into the next prompt. Raised in value by #5a: since extra rounds are manual and rejection usually indicts the idea, feedback is what makes round two differ from round one. Still open whether a reason is required or optional on reject (#2a argues optional — rejections are public).
+- [x] **Multi-product scenes (ASSUMPTIONS #10).** Group multiple SKUs into one shot: the primary SKU is the edit source, featured SKUs go in as `image_ref`. Easy grouping in idea review (Flow 2, Step 6). **Counts for the primary only** (Flow 3, Step 8); featured SKUs get it as a related image. Fidelity test is in Part 4.
+- [x] **Retry with feedback (USER_FLOWS Flow 3, Step 5).** **Rejecting is free; spending again is not.** `[None of these]` is one tap with no reason asked — rejections are public (#2a) and justifying a taste call in front of the team is friction in the wrong place. `[Generate 4 more]` asks what should be different before it spends, so the friction lands on the money (#13) at the one moment a sentence of typing is obviously worth it. The text joins the next round's prompt and is recorded on the round. `[More like the one I approved]` is offered when one exists; `[Try a different idea]` needs no reason at all.
 - [x] **Photographer upload (from ASSUMPTIONS #2).** A Slack action to attach human-shot photos to a request; the freelancer is invited to the channel when needed; shots enter the normal approval flow.
 - [ ] **Pending-decisions email digest (from ASSUMPTIONS #2, design TBD).** Daily or user-set frequency; summarizes Slack state; read-only. Open question: does this need a web app? Watch the "dashboard nobody logged into" risk: an email that comes to them is different from a page they have to visit.
 - [x] **Archive SKUs (ASSUMPTIONS #6).** Hide a product from queues, status, and idea drafting without deleting it; restorable. **Archive means "not right now," not "dead"** — an import containing an archived SKU unarchives it (USER_FLOWS Flow 1). Open: do archived products' approved images keep being served by the CDN lookup?
@@ -273,6 +269,7 @@ Explicitly deferred, with the reason recorded in ASSUMPTIONS.md.
 | Tracking discontinued products | Not our problem to solve; archive covers clutter | #6 |
 | Automatic source-photo review and touch-up | Color-shift risk, false alarms on dark products; manual replace covers it | #11 |
 | Automated candidate accuracy screening (vision-model QC before Slack) | Ellie's approval is the check for now; revisit if spend or rejection rates justify it, or if 14a proves false | #14, #14a |
+| **Systematic image-quality testing** — product accuracy on hard cases (smoke glass HG-041, multi-colour sets HG-018/HG-020), featured-product fidelity via `image_ref` (#10), and the padded-source approach for non-square ratios (#15) | We proceed assuming `uni-1` output is high quality (#14a). Rejection rates in real use are a cheaper and more honest signal than a test pass run against our own guesses about what "good" means. Revisit if approvals-per-round run low, or before relying on featured-product fidelity | #14a, #10, #15 |
 | Scheduled seasonal swaps (campaign sets with date windows) | Needs a scheduler and a set-aware lookup; a campaign end-date reminder plus one-tap revert covers the risk for now. Campaign is recorded per image, so this needs no migration later | #3b |
 
 ## Non-functional requirements

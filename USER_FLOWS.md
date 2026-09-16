@@ -4,7 +4,7 @@
 > Requirements say *what* the system does and why. This document walks a person
 > through it message by message, so gaps show up before the build rather than during it.
 >
-> Status: **Flows 0, 1 and 2 complete** — every decision they raised is settled. Flows 3–7 not started.
+> Status: **Flows 0–3 complete** — every decision they raised is settled. Flows 4–7 not started.
 > Items marked **[OPEN]** carry options only; nothing is decided until a **Decision** line is filled in.
 
 ## Conventions
@@ -23,7 +23,7 @@
 | 0 | Install and set up the bot in a channel | Whoever installs | **Settled** |
 | 1 | Import a new CSV export | Ellie or Maya | **Settled** |
 | 2 | Idea review (batch) | An approver | **Settled** |
-| 3 | Generation → candidate review → approval | Ellie | Not started |
+| 3 | Generation, candidate review, approval | An approver | **Settled** |
 | 4 | Status check | Maya | Not started |
 | 5 | Photographer upload | Freelancer | Not started |
 | 6 | Replace a source photo | Anyone | Not started |
@@ -290,6 +290,41 @@ channels is a path we would have to invent, and a team that outgrows its first c
 be stuck with a choice made in their first two minutes.)*
 *(Rejected: allowing a second live channel. It contradicts #2a's one-channel default and adds
 a channel dimension to every message, status scope, and approver rule.)*
+
+## Step 8 — Multi-product shots, on approval
+
+**Decision (3.4): an approved multi-product image counts for the primary SKU only. Featured
+SKUs get it as a *related* image — available, not counted, not primary.** This resolves the
+question #10 left open.
+
+```
+✅  HG-002 is done — 2 approved images, live now.
+     This one also features HG-011 (Waffle Throw). It's attached to HG-011
+     as a related image; it doesn't count toward its 2.        [Why?]
+```
+
+The reason is fidelity, and it is the one place deferring image-quality testing has a cost we
+can name in advance. The primary SKU's photo is the edit `source`, so it is the product the
+model is actually preserving (#14). Featured SKUs go in as `image_ref`, and **how faithfully
+`image_ref` reproduces a product is unverified — and now untested by choice** (#14a). Counting
+an image toward a SKU that was never the source means a product could reach **done** (#5a) on a
+shot where its own colour or shape is subtly wrong, and nothing downstream would catch it.
+
+So the rule is: **a product is only ever counted on images it was the source for.** Where it is
+counted, it is guaranteed to have been preserved.
+
+- The image is still **attached** to every featured SKU, so a set shot is findable from any
+  product in it and can be used on the site deliberately.
+- It is **not primary** in a featured SKU's lookup, so nothing unverified becomes that product's
+  main image by accident.
+- Grouping therefore helps the *site* more than it helps the *queue*, which is the honest
+  trade — and #10's argument for grouping was always about how styled sets get used, not about
+  clearing the queue faster.
+
+**Explicitly tied to the deferred testing.** If `image_ref` fidelity proves good, counting for
+every SKU becomes a setting rather than a redesign — the data model already relates an image to
+several products (#10). That check is the first item in Part 4's image-quality testing, and it
+is the one place there where not testing is costing something concrete rather than theoretical.
 
 ## Branches and failure cases
 
@@ -940,7 +975,7 @@ to express — the ideas are still text, and nothing has been generated.
   featured-product fidelity as **unverified** — the person choosing should know which product
   is the safe one before they commit a scene to it.
 - Approval of the resulting images has to confirm *every* featured product, not just the
-  primary (#10) — that lands in Flow 3.
+  primary (#10) — that lands in Flow 3, Step 8.
 
 ## Step 7 — Approval starts generation
 
@@ -1011,3 +1046,291 @@ question**, Step 0) · #2b (drop cadence) · #3 (idea gate before spend) · #3b 
 theme) · #5a (short rounds, stuck items) · #7 (notes and priority) · #8 (skip and archive) ·
 #9 (expand vs draft, structured options) · #10 (multi-product grouping) · #13 (candidates
 per round, cost per generation).
+
+---
+
+# Flow 3 — Generation, candidate review, approval
+
+**Goal:** turn an approved idea into 2+ approved images for the product, which is where a
+SKU becomes **done** (#5a) and where its live images change (#4).
+
+**Trigger:** an idea is approved (Flow 2, Step 7). Also entered by a photographer upload (#2)
+and by **generate more** on a short round (#5a).
+
+**Actor:** an approver decides (#1). Anyone can comment, and anyone can force-approve with
+deliberate, recorded friction.
+
+**Preconditions:** the product has an approved idea and a source photo. A product flagged
+**needs a source photo** (Flow 1, Step 5) never reaches this flow.
+
+**Exit state:** the product has 2+ approved images and is done, or it is short and waiting on
+a person — which is a state nothing else in the system surfaces (#5a).
+
+**Hands off to:** Flow 7 (the site and anyone else consuming approved images).
+
+## What is already settled
+
+| Settled | Source |
+|---|---|
+| **One message per request**, carrying all of that product's candidates — the drop is ~37 messages, not ~150 | #2a |
+| Public in `#shot-reviews`, alongside idea review; discussion in the thread | #2a, #2b |
+| 4 candidates per round, max 3 rounds; both settings | #13 |
+| `uni-1` by default, `uni-1-max` selectable per product or idea | #14 |
+| Every prompt carries strict product-preservation instructions | #14 |
+| **No automated quality screening.** An approver's eye is the check | #14, #14a |
+| Approval files the image and makes it live via the per-SKU lookup, with an immutable URL | #4 |
+| Every live-image change posts a notice with a one-tap revert | #4 |
+| Origin (`ai`/`photographer`), model, and source photo version recorded per image; AI files carry embedded provenance metadata | #16 |
+| Done = **2+ approved images** per product | #5a |
+| A short round waits for a person. Nothing regenerates on its own | #5a, #13 |
+| Cost recorded per generation, attributed to product, drop, and who triggered it | #13 |
+| Failed or moderated generations are refunded | brief |
+
+## Step 1 — Generation runs
+
+**System:** submits the four candidates in parallel and polls. Luma image edit takes 30–60s
+per image, so a product's round is back in about a minute.
+
+That number matters more than it looks. Idea review (Flow 2) is ~37 cards at a tap each, so
+**candidates start arriving while the idea queue is still being worked** — and by the time the
+last idea is approved, most of the first products' candidates are already waiting. The drop is
+not "review all ideas, then wait, then review all images"; the two overlap, in one channel, by
+design (#2b).
+
+**Candidates arrive as a new message, not an edit of the idea card.** A silently updated
+message does not notify anyone, and an image waiting for a decision that nobody is told about
+is the stuck state #5a warns of. The new message links back to the idea card, so the thread of
+discussion stays findable.
+
+## Step 2 — The candidate message
+
+**Decision (3.1): a numbered contact sheet to triage, then full size to decide.**
+
+```
+🖼  HG-002 · Stoneware Mug 12oz · Sage        round 1 of 3 · 4 candidates · $0.17
+     Idea: "Morning counter" — approved by @ellie
+
+     ┌─────────┬─────────┐
+     │    1    │    2    │      one 2×2 sheet, numbered
+     ├─────────┼─────────┤
+     │    3    │    4    │
+     └─────────┴─────────┘
+
+     Tap a number to see it full size.
+
+     [1]  [2]  [3]  [4]                        [None of these]  [More…]
+```
+
+Tapping a number opens that candidate at full width, next to the source photo, with the
+approve button there:
+
+```
+     🖼  HG-002 · candidate 2 of 4
+
+         [ candidate, full width ]
+         [ source photo ]   ← the product as it must look
+
+         [Approve]      [Back to all four]      [Next ▸]
+```
+
+**Two taps to approve, and the second tap is the one that matters.** Everywhere else in this
+design one tap decides, so this is a deliberate exception: the approval criterion is *product
+fidelity* — same shape, colour, finish, proportions (#14) — and "is that the Sage mug or the
+Forest one" cannot be answered from a quarter-size thumbnail. With automated QC deferred by
+choice (#14a), this comparison is **the only fidelity check in the entire system**. It should
+cost a tap.
+
+- The **contact sheet triages**: most candidates are visibly wrong on composition alone, and
+  rejecting those never needs full size. The sheet is one screen per product rather than four,
+  so the drop is ~37 screens to triage, not ~150 to scroll.
+- The **source photo sits under the candidate**, not behind another button. Comparison is the
+  decision, so it cannot be one more thing to go and fetch.
+- `[Next ▸]` walks 1→2→3→4 without returning to the sheet, so checking all four in detail is a
+  swipe, not a round trip.
+- The **idea** is named on the message, so "does this match the shot idea" is checkable too.
+- **Round and cost are on every message** (#13), so spend is visible at the moment it is being
+  decided, not only in a report.
+
+*(Rejected: four stacked full-width images. No extra tap, but one product becomes four screens
+and ~150 for the drop, and the buttons drift far from the images they name. Rejected: the
+contact sheet alone with approve buttons on it — it makes the cheap gesture the deciding one,
+for the one judgement this system has no other way of making.)*
+
+## Step 3 — Approving
+
+**Decision: approve per image, reject per round.**
+
+Approving happens on the full-size view (Step 2), not the contact sheet. Approving is **not
+exclusive**: approve 1 and then 3 and both are approved, which is how a product reaches its 2
+in a single round. Images that are not approved are simply not approved;
+there is no per-image reject button.
+
+The reason is that a per-image rejection carries almost no information. Nobody needs to know
+that candidate 3 was worse than candidate 1 — what matters is whether the round produced two
+keepers, and when it did not, **the fault is usually the idea, not the individual image**
+(#5a's own observation: four rejections usually means the idea was wrong). So the only
+rejection that exists is `[None of these]`, and it attaches to the round — which is exactly
+the level at which feedback could improve the next one.
+
+The message updates as approvals land:
+
+```
+     ✅ 1 approved · needs 1 more        [2] [3] [4] still available
+```
+
+## Step 4 — What approval does
+
+Approval is the moment several things become true at once, and the message says so plainly
+rather than leaving them implicit:
+
+1. The image is **filed** — stored, SKU-named, with a unique immutable URL (#4).
+2. It becomes **live** through the per-SKU lookup. Once the site is wired up, nobody uploads
+   anything; approval is publication (#4).
+3. **Provenance is recorded**: origin `ai`, the model used, the source photo version, the idea
+   and campaign it came from (#16, #3b).
+4. The product's **live image set changes**, which posts its own notice:
+
+```
+🔄  HG-002's live images changed — "Morning counter" is now primary.
+     Approved by @ellie · 2 images live.                    [Revert]
+```
+
+The notice exists because approval now reaches the site with nobody in between (#4). One tap
+puts it back. This is the direct answer to the brief's "wrong file was live for three weeks" —
+not that mistakes stop happening, but that they are announced and reversible in a gesture.
+
+When the second image lands:
+
+```
+✅  HG-002 is done — 2 approved images, live now.
+```
+
+## Step 5 — Short rounds
+
+A round can end with zero or one approved image. Per #5a nothing regenerates automatically:
+four rejections usually means the idea was wrong, and an automatic rerun buys four more of
+the same.
+
+```
+⚠️  HG-002 has 1 approved image and needs 2.
+     Nothing is queued — this is waiting on a person.
+
+     [Generate 4 more · $0.17]     [Try a different idea]     [More…]
+```
+
+**Decision (3.2): rejecting is free; spending again is not.** `[None of these]` is one tap with
+no reason asked — rejections here are public (#2a), and demanding that someone justify a taste
+call in front of the team is friction in the wrong place. But `[Generate 4 more]` asks what
+should be different before it spends:
+
+```
+     🔁  Generate 4 more — HG-002 · round 2 of 3 · $0.17
+
+         What should be different this time?
+         ┌──────────────────────────────────────────────┐
+         │ less styled, no props, morning light not     │
+         │ golden hour                                  │
+         └──────────────────────────────────────────────┘
+
+         [More like the one I approved]    ← offered when there is one
+
+         [Generate · $0.17]        [Cancel]
+```
+
+The friction lands on **the money, not the rejection** — which is Maya's actual concern (#13),
+and it is the one moment where a sentence of typing is obviously worth it. It also makes round
+two differ from round one instead of buying four more of the same, which #5a named as the whole
+point of retry-with-feedback.
+
+- The text is **added to the next round's prompt**, and recorded on the round, so rejection
+  patterns are reportable later without anyone having filled in a form.
+- `[More like the one I approved]` appears when the product already has an approved image, since
+  "more of that" is the most common steer and should not need typing.
+- `[Try a different idea]` needs **no** reason: it sends the product back to idea review where
+  the change gets said in the idea itself, which is usually where it belongs (#5a).
+
+**The cost, stated:** someone with nothing to add still has to type something, and "idk" makes a
+worse prompt than silence would. Two things blunt it — the preset button, and the fact that
+`[Try a different idea]` is a zero-typing path that is often the better answer anyway.
+**What to watch:** if the box fills up with shrugs, the requirement is buying noise and should
+become optional.
+
+**This is the system's quietest failure state.** A product at 1-of-2 is blocked on nobody, sits
+in no queue, and appears in no "awaiting approval" count. It is visible only through the
+stuck-item list in status (#5) and through nudges — which is why #5a promoted reminders from a
+nice-to-have to a dependency. The wording above says "waiting on a person" for exactly that
+reason: the message is the only place the state is obvious.
+
+`[Try a different idea]` returns the product to idea review (Flow 2) rather than regenerating,
+because that is usually the real fix.
+
+## Step 6 — Force-approving
+
+**Decision (3.3): a non-approver must say why.** #1 asked for "more friction than Ellie's
+approve" without saying what. A required sentence is the answer.
+
+```
+     ⚠️  @ellie usually decides this.
+
+         You can approve it anyway. It goes live immediately, and the
+         record will show you approved it without an approver.
+
+         Why are you deciding this now?
+         ┌──────────────────────────────────────────────┐
+         │ Ellie's out until Monday and the Q4 email    │
+         │ goes out tomorrow                            │
+         └──────────────────────────────────────────────┘
+
+         [Approve anyway]              [Nudge an approver instead]
+```
+
+**Why a sentence and not just a confirm tap.** A confirm dialog is friction someone in a hurry
+taps through without reading, and the thing it is protecting — that Ellie's taste is the product
+— is worth more than one tap. Typing a reason cannot be done absent-mindedly. It is also the
+only friction here that *produces* something: the record #1 promised is only honest if it says
+why, not merely that.
+
+- The reason is recorded with the approval and shown wherever the forced approval appears, so
+  when Ellie comes back she reads **what was decided and why**, not a list of overrides.
+- It is posted in the channel with the approval, like every other decision here. Public,
+  consistent with #2a, and the fastest way for an approver to object.
+- `[Nudge an approver instead]` is offered first-class, because most of the time the honest
+  answer is "this could wait an hour."
+
+**The cost, stated plainly.** This is friction at 9pm the night before a launch, which is
+precisely the scenario force-approve exists for. That is the trade: the launch is delayed by the
+time it takes to type one sentence, and in exchange the exception cannot quietly become the
+normal path. **What to watch:** if forced approvals climb, the problem is not the friction — it
+is that the approver set is too small (Flow 0, Step 7 adds people in two taps).
+
+## Step 7 — Photographer uploads enter here
+
+Per #2, a human-shot photo uploaded against a request joins this flow rather than bypassing it:
+same message shape, same approval, same provenance record — with origin `photographer` and the
+**"AI-generated?" marker** asked explicitly, because an uploaded image may itself be AI-made and
+origin is never inferred from upload method (#16).
+
+A freelancer is invited to the channel when one is used, which means they can see the queue
+they are contributing to — and nothing else changes.
+
+## Branches and failure cases
+
+| What happens | System response |
+|---|---|
+| A generation fails or is moderated | Refunded. The message says how many came back and offers to retry the missing ones; three candidates is still a decision worth making. |
+| All four fail | Post the failure rather than silence. Silence looks identical to "still generating". |
+| Luma is slow or down | The message stays in "generating"; a product stuck there past a threshold appears in the stuck list (#5). |
+| Nothing useful to say in the "what should be different" box | `[Try a different idea]` costs no typing and is usually the better answer when a whole round misses. |
+| Round 3 ends short | `[Generate more]` is gone — max rounds is a setting (#13), and going past it is a deliberate settings change, not a button. |
+| Someone approves an image with the wrong product colour | Nothing catches it: automated QC is deferred (#14a) and this is where that costs. Recovery is the revert on the live-change notice (#4). |
+| An approved image is later un-approved | The lookup changes again and posts another notice. Immutable URLs mean no cache serves the removed image (#4). |
+| Product's source photo is replaced after approval | Existing approved images stay live; each records the source version it came from (#11), so it is visible that they predate the new photo. |
+| An accepted CSV change hits a product with approved images | Those images enter re-review — keep or replace — and stay live meanwhile (#12). |
+
+## Requirements this flow exercises
+
+ASSUMPTIONS #1 (approver, force-approve, Step 6) · #2 (photographer uploads) ·
+#2a (one message per request, Step 2) · #4 (filing, lookup, live change, revert) ·
+#5 (stuck items) · #5a (done at 2+, short rounds, nudges) · #10 (multi-product — **resolves its
+open question**, Step 8) · #11 (source photo versions) · #13 (rounds, candidates, cost) ·
+#14, #14a (fidelity is the criterion; no automated check) · #16 (provenance and origin).
