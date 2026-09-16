@@ -4,7 +4,7 @@
 > Requirements say *what* the system does and why. This document walks a person
 > through it message by message, so gaps show up before the build rather than during it.
 >
-> Status: **Flows 0–3 complete** — every decision they raised is settled. Flows 4–7 not started.
+> Status: **Flows 0–4 complete** — every decision they raised is settled. Flows 5–7 not started.
 > Items marked **[OPEN]** carry options only; nothing is decided until a **Decision** line is filled in.
 
 ## Conventions
@@ -24,7 +24,7 @@
 | 1 | Import a new CSV export | Ellie or Maya | **Settled** |
 | 2 | Idea review (batch) | An approver | **Settled** |
 | 3 | Generation, candidate review, approval | An approver | **Settled** |
-| 4 | Status check | Maya | Not started |
+| 4 | Status, stuck items, and nudges | Maya | **Settled** |
 | 5 | Photographer upload | Freelancer | Not started |
 | 6 | Replace a source photo | Anyone | Not started |
 | 7 | Consuming approved images | Web person, and anyone doing marketing | Not started |
@@ -325,6 +325,57 @@ counted, it is guaranteed to have been preserved.
 every SKU becomes a setting rather than a redesign — the data model already relates an image to
 several products (#10). That check is the first item in Part 4's image-quality testing, and it
 is the one place there where not testing is costing something concrete rather than theoretical.
+
+## What this flow deliberately does not do
+
+**Decision (4.3): no email digest for now. Designed, recorded as next, not built.** #2 left it
+as "email as a digest only, to be designed", and the design is above — a read-only summary of
+pending decisions, built from exactly the data this flow already assembles. What changed is the
+need for it.
+
+When #2 wrote that line, the only way to learn anything was to go and look. This flow closed
+that gap in Slack: the drop posts its own progress daily (Step 8), and nudges surface stuck
+items without being asked (Step 6). **Email was going to be the thing that comes to you, and now
+something already does.**
+
+What it still leaves uncovered, honestly: the person who has stopped opening Slack. Every push
+this flow builds lands in a channel, so someone genuinely away — Ellie on holiday, which is the
+scenario force-approve exists for (#1) — is reached by nothing. That is the case email answers
+and nothing else here does.
+
+It is deferred rather than cut because it is cheap to add later and the data is already shaped
+for it. **The signal to build it:** items sitting long enough to be force-approved, repeatedly.
+That means the channel is not reaching the person who should be deciding. Recorded in
+REQUIREMENTS Part 4.
+
+**Decision (4.4): the audit trail is recorded and exported, but gets no browsable surface.**
+
+Everything #1 and #16 require is captured — there is no question of *whether* it is kept:
+
+| Recorded | Source |
+|---|---|
+| Who approved each idea and each image, when, whether it was forced, and the **reason given** when it was | #1, Flow 3 Step 6 |
+| Who accepted each pending change on an import | #12, Flow 1 Step 6 |
+| Who triggered each generation, with model, round, and cost | #13 |
+| Origin (`ai` / `photographer`), the AI-generated marker on uploads, and the source photo version | #16, #11 |
+| The campaign theme each idea was drafted under | #3b |
+| Every change to a product's live image set, and every revert | #4 |
+
+What it does not get is a `[History]` view to scroll. Nobody browses an audit trail until
+something has gone wrong, and the questions actually asked in that moment are already answered
+where they happen: a forced approval shows its reason inline wherever it appears, and the
+live-change notice names who approved and offers the revert (#4). The full record is there for
+the case those two do not cover, and a **CSV export** is a perfectly good way to read it — the
+product export carries current state and who last approved; the full event log exports
+separately, because events and products are different shapes and forcing them into one file
+serves neither.
+
+**Next, not now: a web-based data view.** A read-only site over this data could be genuinely
+powerful — filtering, product timelines, spend and rejection patterns over time — and it is
+beyond a one-day build. Worth being precise about why this is not the dashboard Maya's team
+abandoned: that one asked people to go somewhere to **do their work**. This would be somewhere
+to **look something up when something is wrong**, which is a visit measured in times per year,
+not times per day. Nothing in the daily path would depend on it. Recorded in REQUIREMENTS Part 4.
 
 ## Branches and failure cases
 
@@ -1334,3 +1385,276 @@ ASSUMPTIONS #1 (approver, force-approve, Step 6) · #2 (photographer uploads) ·
 #5 (stuck items) · #5a (done at 2+, short rounds, nudges) · #10 (multi-product — **resolves its
 open question**, Step 8) · #11 (source photo versions) · #13 (rounds, candidates, cost) ·
 #14, #14a (fidelity is the criterion; no automated check) · #16 (provenance and origin).
+
+---
+
+# Flow 4 — Status, stuck items, and nudges
+
+**Goal:** let Maya answer "where do things stand" without asking Ellie, and surface the work
+that is quietly waiting on someone — including the work that is waiting on *nobody*.
+
+**Trigger:** anyone runs `/shots status`, or a scheduled report fires, or something has sat
+too long.
+
+**Actor:** Maya is the person this was designed for, but nothing here is restricted. Status is
+read-only and public.
+
+**Exit state:** the asker has a number, a list of what is blocking, and a way to act on it —
+without a login, a dashboard, or a message to Ellie.
+
+**Why this flow carries more than it looks.** Three earlier flows resolved a risk by saying the
+stuck list and nudges would catch it: the unanswered campaign question (Flow 1), the product
+needing a source photo (Flow 1), and the short round at 1-of-2 (Flow 3). None of them designed
+it. **This is where those promises come due**, and if this flow is weak, those three decisions
+were wrong.
+
+## What is already settled
+
+| Settled | Source |
+|---|---|
+| On-demand Slack command at three zoom levels: overall, per drop, per product | #5 |
+| Each answer covers progress by stage, spend, and what is stuck | #5 |
+| ~~The same report can be scheduled, opt-in, off by default~~ — **revised**, Step 8 | #5 |
+| Stages: ideas pending → generating → awaiting approval → approved & ready | #5, #5a |
+| **Done = 2+ approved images**, counted per product, not per request | #5a |
+| Priority products are called out **by name**, not just counted | #7 |
+| Cost recorded per generation, attributed to product, drop, and who triggered it | #13 |
+| Spend compares week-over-week and month-over-month | #13 |
+| Drops exist as a grouping, named at import | #5, Flow 1 |
+| No web dashboard. The rejected tool is the evidence | brief, #2 |
+
+## Step 1 — Three zoom levels, one command
+
+```
+/shots status              → everything
+/shots status q4-drop      → one drop
+/shots HG-002              → one product
+```
+
+Read-only, public in the channel, and answerable in a few seconds on a phone. Maya's actual
+requirement is not a report — it is **not having to ask Ellie**, which means the answer has to
+be cheaper to get than sending a message.
+
+## Step 2 — Everything
+
+```
+📊  Everything · 41 products
+
+     ✅  28 done  (2+ approved images)
+     🖼   4 awaiting a decision
+     🎨   2 generating
+     💡   5 ideas awaiting review
+     ⏸    2 not started
+
+     ⚠️   3 stuck                                      [Show stuck]
+     💰  $14.82 this month · $61.40 all time           [Spend report]
+```
+
+Stage counts roll up to **product** state (#5a), so every number on this screen counts the same
+kind of thing. Maya asked one question and gets one column of numbers that add up to 41.
+
+## Step 3 — One drop
+
+```
+📊  Q4 Drop · imported Sep 15 · 37 products
+     ████████████░░░░░  24 of 37 done
+
+     🖼   6 awaiting a decision          ⭐ HG-002, HG-005 are priority
+     🎨   3 generating
+     💡   2 ideas awaiting review
+     ⚠️   2 stuck                                      [Show stuck]
+     💰  $6.41 spent on this drop
+```
+
+This is the shape of the question the brief actually describes — "32 of 40 done, 5 awaiting
+Ellie, 3 in generation." Priority products are **named** (#7), because "2 priority items are
+waiting" is not actionable and "HG-002 is waiting" is.
+
+## Step 4 — One product
+
+```
+📊  HG-002 · Stoneware Mug 12oz · Sage             ⭐ priority
+     ✅  Done — 2 approved images, live now
+
+     Idea     "Morning counter" · approved by @ellie · Sep 15
+     Round 1  4 candidates · $0.17 · 2 approved
+     Live     2 images · primary "Morning counter"
+     Also in  1 set shot with HG-011 (related, not counted — Flow 3, Step 8)
+
+     [See images]
+```
+
+This is also the web person's answer to "which files are final for this product", which is why
+`[See images]` sits here rather than only in the lookup.
+
+## Step 5 — The stuck list
+
+**Decision: the stuck list is organised by _who it is waiting on_, not by stage.** Stage
+answers "where is it"; this list exists to answer "why has it stopped", and that is a different
+question with a different shape.
+
+```
+⚠️  3 things are stuck
+
+     Waiting on an approver
+       HG-018   candidates, 4 days                      [Review]
+       HG-021   ideas, 6 days                           [Review]
+
+     Waiting on anyone
+       HG-041   needs a source photo, 3 days            [Upload]
+
+     Waiting on nobody   ← these are in no queue
+       HG-034   1 of 2 approved, 5 days                 [Generate more]
+```
+
+Every stuck state the design has accumulated, and who it actually waits on:
+
+| Stuck state | Waiting on | Came from |
+|---|---|---|
+| Import's campaign question unanswered — no ideas drafted | anyone | Flow 1, Step 4 |
+| Pending changes not reviewed | anyone | Flow 1, Step 6 |
+| Product flagged **needs a source photo** | anyone | Flow 1, Step 5 |
+| Drafted ideas not reviewed | an approver | Flow 2 |
+| Candidates awaiting a decision | an approver | Flow 3 |
+| Generating for too long (Luma slow or down) | the system | Flow 3 |
+| **1 of 2 approved, nothing queued** | **nobody** | Flow 3, Step 5 · #5a |
+| Round 3 ended short, max rounds reached | a settings change | Flow 3 |
+| The only approver left the workspace | a workspace admin | Flow 0 |
+
+**"Waiting on nobody" is the category this list exists for.** Everything else appears somewhere
+else too — in a queue, in a channel, on a card someone can see. A product at 1-of-2 approved is
+in no queue, has no pending message, and is nobody's turn. #5a predicted it; this section is
+the only place it is ever visible. It is rendered last and labelled plainly for that reason.
+
+**Every row carries the action that unblocks it.** A stuck list that only reports is a dashboard
+with extra steps.
+
+## Step 6 — Nudges
+
+**Decision (4.2): nudges post in the channel and name products, never people.** No `@`-mentions.
+
+```
+⏰  Three things have been waiting a while
+
+     HG-018   candidates, 4 days                        [Review]
+     HG-021   ideas, 6 days                             [Review]
+     HG-034   1 of 2 approved, 5 days                   [Generate more]
+```
+
+**The bot does not call anyone out.** On a team of four, mechanically applying public pressure
+to a named person is a cost the system has no business imposing — and the people it would name
+are the same people who already run half of everything else. Naming the *product* says the same
+thing without making it about anybody: whoever can act, acts.
+
+It also keeps #2a's rule intact — one surface, one set of interactions, no DM path to build —
+and leaves the item visible to everyone who could unblock it, including force-approvers.
+
+**On the obvious objection.** A nudge addressed to nobody is easier to scroll past than one
+addressed to you. Two things blunt that, and they cover opposite halves of the year:
+
+- **During a drop**, the channel is where everyone's attention already is (#2b). The work is
+  focused, the queue is live, and an unaddressed list lands among people actively working it.
+- **Between drops**, the channel is quiet — so an unaddressed nudge is very nearly the only
+  thing in it. The scroll-past risk is highest exactly when attention is highest, and lowest
+  exactly when the channel is empty. That is the long tail this needs to survive: a product at
+  1-of-2 three weeks after the drop closed.
+
+**How often.** At most one nudge post a day, listing everything currently past the threshold
+(a setting). If nothing is over, nothing posts — silence is the default state, and a bot that
+posts "all clear" every morning teaches people to ignore it.
+
+**Next, not now:** opt-in DM nudges, for someone who wants their own items pushed to them
+privately. Out of scope here — it builds the DM path #2a avoided, and the channel version has
+to be shown to be insufficient first. Recorded in REQUIREMENTS Part 4.
+
+## Step 7 — Spend
+
+Status shows spend **for the scope being asked about** (#13). Comparisons live in their own
+command, because "how are we doing" and "how much did we spend" are different questions and
+answering both at once makes each harder to read.
+
+```
+/shots spend
+
+💰  Spend
+
+     This week    $6.41      ▲  previous week $0.00
+     This month   $14.82     ▲  previous month $9.30
+     All time     $61.40
+
+     By drop      Q4 Drop $6.41 · Spring Drop $9.30 · ad-hoc $46.69
+     Most spent   HG-018 $0.68 (4 rounds)
+```
+
+- **"Most spent" names the runaway product**, because #13's actual risk was never the total —
+  it was regenerating one product over and over.
+- Because drops are a few times a year (#2b), a week-over-week comparison is mostly `$0.00`
+  versus a spike. That is the honest picture, and it is why the drop breakdown matters more
+  than the calendar one.
+- Optional warning thresholds post to the channel when crossed; nothing is ever paused (#13).
+
+## Step 8 — What posts without being asked
+
+**Decision (4.1): a drop reports itself — two bookends and a daily post while it is open — and
+`/shots status` stays available to anyone, any time.** Mostly automatic, never only automatic.
+
+Maya's requirement was never a report; it was **not having to ask**. A command she has to
+remember to run is the same shape as the dashboard she has to remember to open, and that already
+failed once. So the drop tells its own story:
+
+| Post | When | Already exists? |
+|---|---|---|
+| **Start** | The import summary (Flow 1, Step 4) | Yes — it announces the drop, names it, and counts what came in |
+| **Daily** | Once a day while the drop is open | New. The Step 3 drop report, unchanged |
+| **Finish** | When the drop completes | New. "Q4 Drop is done — 37 of 37 · $6.41" |
+
+```
+📊  Q4 Drop · day 3
+     ████████████░░░░░  24 of 37 done
+
+     🖼   6 awaiting a decision      ⭐ HG-002, HG-005 are priority
+     💡   2 ideas awaiting review
+     ⚠️   2 stuck                                      [Show stuck]
+     💰  $6.41 so far
+```
+
+**Why this does not become noise:** drops happen a handful of times a year (#2b), so "daily
+while a drop is open" is a few posts, a few times a year — and **nothing at all in between**.
+The automatic reporting is bounded by the drop's own lifetime, which is what stops it growing
+into a feed nobody reads.
+
+**When a drop stops being open.** It completes when every product in it is done, skipped, or
+archived. It also goes quiet if **nothing has changed for several days** — at that point a
+daily post repeating the same number is noise, and the right mechanism is the nudge (Step 6),
+which names the specific things that are stuck rather than restating the total. Same principle
+throughout this flow: no post is better than an empty one.
+
+**Next, not now:** making the frequency configurable (daily or weekly, per person or per
+install). #5 imagined opt-in scheduled delivery; this replaces it with a sensible default,
+which is both less to build and more likely to actually reach Maya. Configurability is the
+thing to add when someone complains, not before. Recorded in REQUIREMENTS Part 4.
+
+> **Revises ASSUMPTIONS #5**, which had scheduled delivery as optional and off by default.
+> During a drop it is now on by default; between drops there is nothing to deliver.
+
+## Open decisions raised by this flow
+
+## Branches and failure cases
+
+| What happens | System response |
+|---|---|
+| `/shots status` with nothing imported yet | Says so, and points at dropping a CSV — the same next step Flow 0 ends on. |
+| An unknown drop name or SKU | Lists the drops, or the closest SKU matches. A typo should not be a dead end. |
+| A drop with everything done | Reports complete, with total spend. This is the message Maya actually wants at the end of a launch. |
+| Archived products | Excluded from every count (#6), so archiving a product does not quietly change the denominator without explanation. |
+| A product with a second approved idea | Counted once (#5a). A Q4 scene for an already-done product moves no number, which is the blind spot #3b and #5a both flagged — the themed run has to be tracked as its own thing. |
+| Status asked mid-generation | "Generating" is a real state with a count, so waiting never looks like nothing happening. |
+| Nothing is stuck | Say so explicitly. An empty list is information. |
+
+## Requirements this flow exercises
+
+ASSUMPTIONS #2 (email digest — deferred, with the reason) · #2a (one surface; nudges keep it, Step 6) · #2b (drop
+cadence shapes what a weekly comparison means) · #3b (themed runs move no progress number) ·
+#5 (three zoom levels; **scheduled delivery revised**, Step 8) · #5a (done at 2+, stuck items, nudges as a
+dependency) · #6 (archived products excluded) · #7 (priority named) · #13 (spend, comparisons,
+warning thresholds) · #16 (provenance; audit trail recorded and exported, not browsable).
