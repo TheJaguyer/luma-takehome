@@ -4,7 +4,7 @@
 > Requirements say *what* the system does and why. This document walks a person
 > through it message by message, so gaps show up before the build rather than during it.
 >
-> Status: **Flows 0–4 and 7 complete** — every decision they raised is settled. Flows 5–6 not started.
+> Status: **All seven flows complete.** Every decision they raised is settled.
 > Items marked **[OPEN]** carry options only; nothing is decided until a **Decision** line is filled in.
 
 ## Conventions
@@ -25,8 +25,8 @@
 | 2 | Idea review (batch) | An approver | **Settled** |
 | 3 | Generation, candidate review, approval | An approver | **Settled** |
 | 4 | Status, stuck items, and nudges | Maya | **Settled** |
-| 5 | Photographer upload | Freelancer | Not started |
-| 6 | Replace a source photo | Anyone | Not started |
+| 5 | A photographer's shot enters review | Anyone, incl. a freelancer | **Settled** |
+| 6 | Replacing a product's source photo | Anyone | **Settled** |
 | 7 | The site consuming approved images | The web developer | **Settled** |
 
 ---
@@ -1686,6 +1686,283 @@ warning thresholds) · #16 (provenance; audit trail recorded and exported, not b
 
 ---
 
+# Flows 5 and 6 — Photos coming in from people
+
+These are two flows sharing one gesture: somebody drops an image into Slack. What happens next
+depends entirely on **which kind of photo it is**, and the two meanings are nearly opposite.
+
+| | Flow 5 — a finished shot | Flow 6 — a source photo |
+|---|---|---|
+| What it is | A styled photograph, shot by a person | A replacement white-background product photo |
+| Where it goes | Straight into candidate review (Flow 3) | Becomes the new source for future generations |
+| What it changes | Could be live in one tap | Nothing live; changes everything generated next |
+| Source | #2, the photographer escape hatch | #11, the fix for a bad input |
+
+Getting this wrong is expensive in both directions: a white-background product photo approved as
+a candidate puts a catalogue shot on the product page, and a finished lifestyle shot used as a
+generation source produces scenes built on top of a scene. **So the fork is explicit, not
+inferred** (OPEN 5.1).
+
+**Who may upload: anyone.** Uploading is an *input*, like importing a CSV — not a decision.
+Nothing goes live because it was uploaded; a finished shot still has to be approved, and a source
+photo only affects what gets generated later. That is the line this design draws throughout:
+
+> **Inputs are open to anyone. Decisions follow the approval rule** (#1) — approver in one tap,
+> anyone else with a required sentence.
+
+---
+
+# Flow 5 — A photographer's shot enters review
+
+**Goal:** let a human-shot photo compete on equal terms with generated ones, so the team is never
+stuck when AI cannot do a shot (#2).
+
+**Trigger:** someone uploads a finished photo against a product.
+
+**Exit state:** the photo is a candidate awaiting a decision, indistinguishable in the review flow
+from a generated one except in its recorded origin.
+
+## Step 1 — Upload and declare
+
+**Decision (5.1): drop the image in the channel and the bot asks.** Same gesture as the CSV drop
+in Flow 1 — no command to remember, and it works from a phone, which is where a photographer is.
+
+```
+     🖼  Got it — what is this photo for?
+
+         Product:   [ HG-041 · Smoke Glass Tumbler  ▾ ]
+
+         ○  A finished shot
+            Goes straight to review as a candidate. Nothing is generated.
+
+         ○  A new product photo
+            Replaces the source and generates 4 new candidates · $0.17
+
+         Was it made with AI?      ○ No   ○ Yes   (asked either way)
+
+         [Continue]
+```
+
+- **Dropped in a product's thread**, the SKU is pre-filled and only the kind is asked.
+- **The consequence is written into the option itself**, including the cost. This is the one
+  choice in the system where picking wrong is both expensive and silent, so it is not described
+  as "source photo" versus "finished shot" — terms that mean nothing to a freelancer — but as
+  what each one *does next*.
+
+**The AI question is asked of every upload, never inferred** (#16). A freelancer may well have
+used a generator, and origin recorded wrongly is worse than origin unknown — it is a provenance
+record that lies. #16 exists precisely so the team can make a disclosure decision later; that is
+only possible if the data is honest.
+
+## Step 2 — It becomes a candidate
+
+The photo joins the product's candidate message (Flow 3), or starts one if no round is open:
+
+```
+🖼  HG-041 · Smoke Glass Tumbler                       1 candidate · uploaded
+     From @sam · photographer · not AI
+
+     [ the photo ]
+
+     [Approve]                        [Compare with source]   [More…]
+```
+
+Everything downstream is identical to a generated candidate: the same approval rule, the same
+`[Compare with source]` fidelity check, the same live-change notice and revert, the same counting
+toward done at 2+ (#5a). The only differences are recorded, not behavioural — `origin`,
+`ai_generated`, and no model or round.
+
+- **No cost line**, because there was none. A photographer round shows in status as work done
+  without spend, which is the honest picture.
+- The product **does not need an approved idea** for an upload to arrive. A person photographing
+  something has already decided what the shot is; requiring them to first get a written idea
+  approved would be process for its own sake.
+
+## Step 3 — How a freelancer participates
+
+**Decision (5.2): either invite them to the review channel, or have a team member upload on their
+behalf — and the second is usually the better answer.** Both work with what is already built; no
+new surface either way.
+
+| Route | When it fits |
+|---|---|
+| **Invite them to `#shot-reviews`** as a single-channel guest | A longer engagement, where seeing the ideas, the house style and what got rejected makes their work better. |
+| **A team member uploads their photos** | Everything shorter. The freelancer emails or shares files as they do today, and someone drops them in the channel (Step 1). |
+
+**Why the second is the default recommendation.** A Slack guest in the review channel sees
+*everything* in it — every product's candidates, every rejection, the team's internal discussion,
+and the spend figures. That is a lot of a small company's inner workings for a contractor shooting
+four products, and nothing about the upload mechanic requires it. **Uploading on someone's behalf
+costs one extra step and exposes nothing**, and origin is still recorded honestly: the photo is
+marked `photographer`, with the AI question asked as always (#16).
+
+*(The upload flow does not care which route is used. It is the same drop, the same question, the
+same review — the only thing that changes is whose hands the file passes through.)*
+
+**Next, not now: a separate upload channel** the bot also watches, where a freelancer sees only
+their own uploads and the products they are shooting. It is the right answer for a team that uses
+photographers regularly, and it is more than a one-day build needs — the two routes above cover
+the case without a second surface, and adding one now would split the "one surface" story (#2a)
+for a rare participant. Recorded in REQUIREMENTS Part 4.
+
+---
+
+# Flow 6 — Replacing a product's source photo
+
+**Goal:** fix a bad input, which is the only reliable fix for a bad generation (#11).
+
+**Trigger:** someone chooses "a new product photo" in Flow 5, Step 1 — or acts on a product
+flagged **needs a source photo** (Flow 1, Step 5), or accepts a photo change from a CSV import
+(Flow 1, Step 6). All three roads arrive here, and from Step 3b onward they behave identically.
+
+**Exit state:** the product has a new current source photo version. Every earlier version is
+kept, and every image ever generated still records which version it came from (#11).
+
+## Step 1 — Replace, and see what you are replacing
+
+```
+     🔄  New product photo — HG-041 · Smoke Glass Tumbler
+
+         [ current ]    →    [ new ]
+
+         Idea:  "Evening bar cart" (already approved)
+         The 2 approved images already live are not affected.
+
+         [Replace and generate 4 · $0.17]             [Cancel]
+```
+
+Showing both is the whole safeguard. The failure this prevents is replacing the Charcoal variant's
+photo with the Smoke one — a mistake that is invisible in a filename and obvious side by side.
+
+**Decision: replacing the source photo generates a new round straight away.** The reason someone
+replaces a source is almost always that the last round came out wrong because the input was wrong
+(#11). Making them replace the photo, then go and find the product, then ask for more candidates
+would be three steps for one intention.
+
+- **The cost is on the button** (#13). Spend stays deliberate — it is just not a separate errand.
+- **A new source resets the round counter.** Max rounds (#13) exists to stop someone regenerating
+  the same thing repeatedly; a different source photo is not the same thing. A product that had
+  exhausted its rounds gets a fresh start rather than a dead end.
+- **No approved idea, no generation.** The photo is still replaced, and the product goes to idea
+  review as normal — #3's rule that nothing generates before an idea is approved is absolute, and
+  this is not an exception to it.
+- **A product flagged "needs a source photo"** (Flow 1, Step 5) is unblocked and generated in the
+  same gesture, which is the whole point of that flag being a state rather than a rejected row.
+
+## Step 2 — Versions, not overwrites
+
+- The previous photo is **kept**, not replaced. "Current" is a pointer, not a file.
+- Every candidate records **which source version produced it** (#11), so an image that predates a
+  photo change stays explicable rather than mysterious.
+- Nothing already approved changes. Approved images stay live and keep serving (Flow 7).
+
+## Step 3 — What it unblocks
+
+A product flagged **needs a source photo** (Flow 1, Step 5) is blocked here and nowhere else: its
+idea can be approved, but no generation starts. Uploading the photo clears the flag *and* runs the
+round that was waiting — one gesture from stuck to candidates in the channel about a minute later.
+
+## Open decisions — Flow 6
+
+## Step 3b — When the product already has approved images
+
+**Decision (6.1): ask what should happen to them — keep, or start over.** The question is only
+asked when there is something to ask about; a product with no approved images just gets replaced
+and generated (Step 1).
+
+```
+     🔄  New product photo — HG-041 · Smoke Glass Tumbler
+
+         [ current ]    →    [ new ]
+
+         HG-041 has 2 approved images, live now.
+
+         ○  Keep them
+            A better photo of the same product. Nothing live changes.
+
+         ○  Start over
+            Back to ideation and generation for this SKU. The 2 images
+            stay live until new ones replace them.
+
+         [Replace]                                    [Cancel]
+```
+
+**The question is about the action, not about a classification.** "Is this the same product or a
+different one?" asks someone to make a judgement and then map it to a consequence they cannot
+see. "Keep them" versus "start over" *is* the consequence — the same reasoning as the upload fork
+in Flow 5, Step 1.
+
+**Keep them** — approved images stay approved, counted, and live. The new photo applies to what
+gets generated next, and the round from Step 1 runs against the existing approved idea.
+
+**Start over** — the SKU returns to idea review (Flow 2) and ideas are re-drafted against the new
+photo and product data, because an idea written for the old product may not fit the new one.
+Meanwhile:
+
+- **The old images stay live.** #12's rule holds: the site never loses images mid-decision. They
+  are flagged in status as "from the previous photo", so the state is visible rather than implied.
+- When the SKU reaches 2+ newly approved images, the bot posts a one-tap **retire the older
+  images** — which is itself a live change, so it carries the usual notice and revert (#4).
+- Nothing is deleted. The old images keep their immutable URLs and their provenance (#16).
+
+**This unifies the two roads.** An accepted CSV photo change (#12) now asks exactly this question
+rather than having its own keep/replace re-review — same photo change, same consequence, one
+interaction to learn. #12's re-review was the right idea described before there was a flow to put
+it in.
+
+## Step 4 — When the photo is not square
+
+**Decision (6.2): accept it, and say plainly what it will do.** Luma takes its output dimensions
+from the source (#15), so every product photo being 2048×2048 is the only reason this pipeline
+produces square images at all.
+
+```
+     ⚠️  This photo is 1600 × 1200 (4:3), not square.
+
+         Images generated from it will be 4:3 too — the model takes its
+         output size from the source photo. The product page is probably
+         expecting square.
+
+         [Replace and generate anyway]        [Cancel]
+```
+
+We do not refuse it, because the person uploading may be holding the only photo that exists, and
+a tool that blocks the only available input is a tool people work around. We do not silently pad
+it either — altering someone's product photo without saying so is exactly the kind of invisible
+change this whole design is built to avoid.
+
+**The honest cost:** a warning is read once, and the consequence shows up on a product page days
+later. That is a real weakness of this choice, not a solved problem. Two things limit it — the
+warning states the *effect* rather than the dimensions alone, and the round it triggers is
+reviewed by a person within minutes, who will see square candidates become 4:3 ones.
+
+**Next, not now: proper image intake.** Validating and normalising what comes in — dimensions,
+aspect ratio, background, resolution floors, colour profile, EXIF orientation, format conversion,
+and padding or cropping to a canonical source — is a real piece of work and out of scope here.
+Recorded in REQUIREMENTS Part 4. The signal to build it: anything non-square actually being
+uploaded, which we will see because the source version records its dimensions.
+
+## Branches and failure cases — Flows 5 and 6
+
+| What happens | System response |
+|---|---|
+| Upload against an archived product | Allowed. Archive hides it from queues, not from work someone deliberately does (#6). |
+| A finished shot uploaded for a product with no approved idea | Fine — it needs no idea (Flow 5, Step 2). The product still reaches done at 2+ (#5a). |
+| Several photos dropped at once | Each gets its own kind question, or one question applied to all if they are for the same product. |
+| Not an image, or a corrupt file | One reply naming the problem. Same shape as a bad CSV (Flow 1). |
+| A source photo replaced while a round is generating | In-flight candidates finish against the version they started from and record it (#11); the new round runs alongside. Both appear as candidates, each labelled with its source version. |
+| The uploaded shot is the *only* approved image | The product sits at 1 of 2 and appears in "waiting on nobody" (Flow 4) — a human shot does not change the definition of done. |
+| A freelancer's engagement ends | If they were a channel guest, they are removed. Nothing they uploaded is affected, and their origin records stand. If a team member was uploading on their behalf, there is nothing to undo. |
+
+## Requirements these flows exercise
+
+ASSUMPTIONS #1 (inputs open to anyone, decisions follow the approval rule) · #2 (photographer
+escape hatch, Step 3) · #5a (a human shot counts toward done like any other) ·
+#6 (archived products) · #11 (source photo versions, replace as the fix for a bad input) ·
+#12 (a CSV photo change reaches Flow 6 by another road, and now asks the same question, Step 3b) · #15 (output size comes
+from the source, Step 4) · #16 (origin and the AI marker, asked never inferred).
+---
+
 # Flow 7 — The site (and anyone else) consuming approved images
 
 **Goal:** make "which files are final for this product" a question nobody has to ask. The web
@@ -1895,8 +2172,15 @@ improve the few where the guess is wrong.
 **Why an action rather than nothing.** The primary image is the one the site leads with, so it
 is the one place "close enough" is visible to customers. That is worth one button.
 
-Every promotion is a change to what is live, so it posts the same notice with the same one-tap
-revert as an approval (Step 6) — it is a publishing action, not a preference.
+Every promotion is a change to what is live, so it **follows the approval rule exactly**: one tap
+for an approver, force-approve friction for anyone else (#1, Flow 3 Step 6), and it posts the
+same notice with the same one-tap revert as an approval (Step 6). It is a publishing action, not
+a preference.
+
+> **One rule, everywhere.** Approving an idea, approving an image, promoting an image to primary,
+> and setting a product's priority flag (#7) all behave identically. The test for whether
+> something needs the rule is simple: *does it change what a customer sees, or what the team
+> works on next?*
 
 ## Step 6 — What approval changes, now that sets exist
 
