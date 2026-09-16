@@ -4,7 +4,7 @@
 > Requirements say *what* the system does and why. This document walks a person
 > through it message by message, so gaps show up before the build rather than during it.
 >
-> Status: **Flows 0–4 complete** — every decision they raised is settled. Flows 5–7 not started.
+> Status: **Flows 0–4 and 7 complete** — every decision they raised is settled. Flows 5–6 not started.
 > Items marked **[OPEN]** carry options only; nothing is decided until a **Decision** line is filled in.
 
 ## Conventions
@@ -27,7 +27,7 @@
 | 4 | Status, stuck items, and nudges | Maya | **Settled** |
 | 5 | Photographer upload | Freelancer | Not started |
 | 6 | Replace a source photo | Anyone | Not started |
-| 7 | Consuming approved images | Web person, and anyone doing marketing | Not started |
+| 7 | The site consuming approved images | The web developer | **Settled** |
 
 ---
 
@@ -522,7 +522,7 @@ bad rows in the sheet and export again" is what a person will actually do.
      campaign? Drafting starts either way (about $0.02). No image is
      generated until you approve an idea.
 
-     [No theme]   [Set a theme…]   [Holiday / Q4 ↺]
+     [No theme]   [holiday]   [halloween]   [New theme…]
 ```
 
 Three decisions are settled in that message.
@@ -536,12 +536,14 @@ pass with no re-draft and no dangling `[Draft ideas]` button to forget.
 
 - `[No theme]` is a real answer, not a dismissal — it starts drafting against the house
   style blurb alone. Routine imports are one tap.
-- `[Set a theme…]` opens a plain-text box ("holiday mantel, evergreen, candlelight").
-  Plain text, because #3b keeps both style layers as text the team owns.
-- Recently used themes appear as one-tap chips (`[Holiday / Q4 ↺]`), so a second Q4 import
-  does not retype anything.
-- The theme is recorded on every idea it produced, so approved images know which campaign
-  made them (#3b) — which is what keeps campaign *sets* available later with no migration.
+- **Existing themes are one-tap chips.** Picking `halloween` adds this batch to the set the site
+  already asks for, rather than creating a second string beside it. Picking is easier than
+  typing, which is the only reliable way to keep the vocabulary small (Flow 7, Step 4).
+- `[New theme…]` asks for two things: a short **name** the site will request (`halloween`) and
+  the **look** that steers drafting ("carved pumpkins, candlelight, dark moody wood"). The look
+  is free text, because #3b keeps both style layers as text the team owns.
+- The theme is recorded on every idea it produced, so approved images know which campaign made
+  them (#3b) — and that is what the per-SKU lookup groups by (Flow 7).
 
 **The cost, stated plainly:** this puts a required answer between the import and any
 drafted ideas. An import nobody answers produces **nothing** — no ideas, no queue, no
@@ -1447,7 +1449,23 @@ be cheaper to get than sending a message.
      ⏸    2 not started
 
      ⚠️   3 stuck                                      [Show stuck]
+     🖼   6 would show a thin gallery                   [Show]
      💰  $14.82 this month · $61.40 all time           [Spend report]
+```
+
+**"Thin gallery" is a separate signal from "done", deliberately.** Done is 2+ approved images
+(#5a) — the brief's own floor, and the number Maya counts. A product page uses about three
+(#4c). So a product can be **done and still render one image short**, and these are reported as
+two different things: done never moves because of a thin gallery, and a thin gallery never
+blocks a launch. It is a nudge with a price tag attached, not a failure.
+
+```
+🖼  6 products would show fewer than 3 images
+
+     HG-005   2 default · 0 holiday       [Generate more]
+     HG-018   1 default · 1 holiday       [Generate more]
+     …
+     Filling all six: about $1.04
 ```
 
 Stage counts roll up to **product** state (#5a), so every number on this screen counts the same
@@ -1474,15 +1492,21 @@ waiting" is not actionable and "HG-002 is waiting" is.
 
 ```
 📊  HG-002 · Stoneware Mug 12oz · Sage             ⭐ priority
-     ✅  Done — 2 approved images, live now
+     ✅  Done — 2 approved images
 
+     Images   3 approved · 2 default · 1 holiday
      Idea     "Morning counter" · approved by @ellie · Sep 15
      Round 1  4 candidates · $0.17 · 2 approved
-     Live     2 images · primary "Morning counter"
+     Live     primary "Holiday mantel" when asked for holiday, else "Morning counter"
      Also in  1 set shot with HG-011 (related, not counted — Flow 3, Step 8)
 
      [See images]
 ```
+
+**Approved images are counted per SKU and split by theme.** A flat total stopped being enough
+once the lookup groups by theme (Flow 7): "3 approved" does not say whether a holiday page will
+render a full gallery. The split does, and it is what makes generating one more shot a decision
+someone can actually make rather than a thing they discover from the website.
 
 This is also the web person's answer to "which files are final for this product", which is why
 `[See images]` sits here rather than only in the lookup.
@@ -1647,6 +1671,7 @@ thing to add when someone complains, not before. Recorded in REQUIREMENTS Part 4
 | An unknown drop name or SKU | Lists the drops, or the closest SKU matches. A typo should not be a dead end. |
 | A drop with everything done | Reports complete, with total spend. This is the message Maya actually wants at the end of a launch. |
 | Archived products | Excluded from every count (#6), so archiving a product does not quietly change the denominator without explanation. |
+| A product is done but thin | Reported separately, never as "not done" (#5a vs #4c). Two signals, two purposes. |
 | A product with a second approved idea | Counted once (#5a). A Q4 scene for an already-done product moves no number, which is the blind spot #3b and #5a both flagged — the themed run has to be tracked as its own thing. |
 | Status asked mid-generation | "Generating" is a real state with a count, so waiting never looks like nothing happening. |
 | Nothing is stuck | Say so explicitly. An empty list is information. |
@@ -1656,5 +1681,279 @@ thing to add when someone complains, not before. Recorded in REQUIREMENTS Part 4
 ASSUMPTIONS #2 (email digest — deferred, with the reason) · #2a (one surface; nudges keep it, Step 6) · #2b (drop
 cadence shapes what a weekly comparison means) · #3b (themed runs move no progress number) ·
 #5 (three zoom levels; **scheduled delivery revised**, Step 8) · #5a (done at 2+, stuck items, nudges as a
-dependency) · #6 (archived products excluded) · #7 (priority named) · #13 (spend, comparisons,
+dependency) · #6 (archived products excluded) · #7 (priority named) · #4c (image counts per theme; thin galleries) · #13 (spend, comparisons,
 warning thresholds) · #16 (provenance; audit trail recorded and exported, not browsable).
+
+---
+
+# Flow 7 — The site (and anyone else) consuming approved images
+
+**Goal:** make "which files are final for this product" a question nobody has to ask. The web
+person integrates once, and after that approval reaches the site with nobody in between (#4).
+
+**Trigger:** a one-time integration, then every page render, forever.
+
+**Actor:** the web developer. Unlike every other flow here, **the actor is a program**, and the
+interface is not Slack.
+
+**Preconditions:** the lookup base URL was posted in the channel at setup (Flow 0, Step 5). The
+site already knows which SKUs it lists (#4b).
+
+**Exit state:** the site renders current approved images by SKU, and the weekly manual upload
+is gone.
+
+## What is already settled
+
+| Settled | Source |
+|---|---|
+| A per-SKU lookup the web developer codes against once | #4 |
+| Every image version has a unique, **immutable** URL | #4 |
+| Approved images only. Candidates are never served | #4 |
+| Approval **is** publication — no upload step, no dev work per product | #4 |
+| Every change to a SKU's live images posts a Slack notice with one-tap revert | #4 |
+| `origin` (`ai` / `photographer`) is exposed per image | #16 |
+| Square 2048×2048 is the standard output; no resizing or thumbnails | #15, #4a |
+| No storefront platform connector | #4a |
+| **The site decides what it lists; we only answer questions about SKUs it names** | #4b |
+| **Archived products keep being served** — archive is our workflow state, not a publishing switch | #6, #4b |
+
+## Step 1 — The integration, once
+
+The web developer takes the URL from the channel (Flow 0, Step 5) and wires one call into the
+product template. There is no account to make, no key to rotate on day one, and no per-product
+configuration — that is the entire point of #4.
+
+```
+GET  https://<host>/products/HG-002/images
+GET  https://<host>/products/HG-002/images?theme=holiday
+```
+
+## Step 2 — The response
+
+```json
+{
+  "sku": "HG-002",
+  "requested_theme": "holiday",
+  "served_theme": "holiday",
+  "images": [
+    {
+      "url": "https://<host>/i/HG-002/9f3c1a7e/holiday-mantel.jpg",
+      "primary": true,
+      "theme": "holiday",
+      "origin": "ai",
+      "width": 2048,
+      "height": 2048,
+      "approved_at": "2026-11-02T14:22:10Z"
+    }
+  ]
+}
+```
+
+- **`served_theme` is not decoration.** It says whether the caller got what it asked for or fell
+  back to defaults, which turns "why is there no holiday image on this page" into a question
+  answerable from the response instead of by asking someone in Slack.
+- **`origin` per image** (#16) lets the team add an AI label if they ever decide to, without us
+  deciding for them.
+- **`url` is immutable.** Replacing an image changes what this endpoint returns; it never
+  changes the bytes behind a URL that was already handed out (#4). That is what makes the
+  brief's "wrong image cached for three weeks" impossible rather than merely unlikely.
+
+**Caching, stated explicitly, because the two halves are opposite:**
+
+| | Cache |
+|---|---|
+| Image URLs | Forever. They are immutable by construction. |
+| The lookup response | Briefly (seconds to a minute). It is the thing that changes when someone approves. |
+
+That split is what lets "approval = live" be true in practice: the images cache hard, the
+answer does not.
+
+## Step 3 — Themes, and the fallback
+
+**The caller asks; we answer.** The site knows it is November and asks for `holiday`. If the
+SKU has approved holiday images, it gets them. If it does not, it gets the defaults, and
+`served_theme` says `default`.
+
+```
+     ?theme=holiday   →  HG-002 has 2 holiday images  →  2 holiday, then the defaults
+     ?theme=holiday   →  HG-005 has none              →  defaults · served_theme: "default"
+     (no theme)       →  always the defaults
+```
+
+**Decision (7.2): a themed request returns the themed images first, then the defaults.** Not a
+strict swap, and not an unsorted pile for the caller to sort out.
+
+The site uses about three images on a product page (#4c), and a campaign round usually produces
+**one** good seasonal scene per product rather than three. So the realistic holiday case is one
+holiday shot and two everyday ones — and themed-first-then-defaults is exactly a full gallery
+that leads with the season. A strict swap would render that product with a single image.
+
+- Within the response, themed images keep their own display order, then defaults keep theirs.
+  `primary: true` marks whichever is first overall — the seasonal shot, when there is one.
+- **Every image still carries its `theme`**, so a site that wants seasonal-pure galleries can
+  filter, and one that wants a full gallery just renders the list. The ordering is a good
+  default, not a constraint.
+- If the real gallery size turns out to be one, this quietly *becomes* a strict swap — the site
+  renders the first image, which is the seasonal one. The decision degrades in the right
+  direction.
+
+*(Rejected: returning everything unordered and labelled. It is the least presumptuous option and
+it pushes a judgement onto the web developer that has to be made correctly on every template,
+for a call whose entire purpose is that they integrate it once and stop thinking about it.)*
+
+**Why this is smaller than it sounds, and why it matters.** ASSUMPTIONS #3b deferred "campaign
+sets with date windows" because it needed a scheduler, an active-set state, and it introduced a
+failure mode where an expired set leaves a product short of images. Moving the question to the
+caller deletes all three: the site owns the calendar, there is no set to activate or expire, and
+the fallback *is* the answer to a missing themed set. In February the site stops asking for
+`holiday` and the everyday images return on their own — which is #3b's "pumpkins in February"
+failure prevented structurally rather than by a reminder.
+
+What we give up: **we cannot make a seasonal swap happen.** If the site never asks for a theme,
+approved holiday images sit there unserved and nothing in our system can tell. The one-tap revert
+and the campaign end-date reminder (#3b) stay useful for the images the site *is* asking for.
+
+## Step 4 — Where theme names come from
+
+**Decision (7.3): a theme is a named thing, not a sentence.** It has two fields, and they do
+different jobs:
+
+| Field | Example | Used by |
+|---|---|---|
+| **Name** | `halloween` | The site: `?theme=halloween`. Short, stable, never changes. |
+| **Look** | "carved pumpkins, candlelight, dark moody wood" | Idea drafting (#3b). Free text, editable. |
+
+Setting a campaign at import (Flow 1, Step 4) is therefore **pick an existing theme or create
+one**, not type a sentence:
+
+```
+     Is this batch for a campaign?
+     [No theme]   [holiday]   [halloween]   [New theme…]
+```
+
+**Reusing an existing theme is the point.** If `halloween` already exists, October's new images
+join the set the site is already asking for — no second string, no `halloween-2026` drifting
+alongside `halloween`. The vocabulary stays small because picking is easier than typing, which
+is the only reliable way to keep a controlled list controlled.
+
+Creating one asks for both fields at once:
+
+```
+🎨  New theme
+
+     Name — what the site asks for      [ halloween                    ]
+     Look — what steers the drafts      [ carved pumpkins, candlelight ]
+                                        [ dark moody wood              ]
+
+     [Create and draft ideas]                            [Cancel]
+```
+
+And the web developer is told, in the channel, the moment a theme first exists:
+
+```
+🎨  New theme "halloween" — the site can request it as ?theme=halloween
+```
+
+That message is the whole integration contract for themes. No endpoint to poll, no list to keep
+in sync: a theme is created a few times a year (#2b), and when it is, the string is posted where
+the web developer already is.
+
+- **The look can be edited; the name cannot.** Renaming would silently break a live page, which
+  is the one thing this whole flow exists to prevent.
+- Editing a theme's look does not rewrite past ideas — the text each idea was drafted under is
+  recorded on it (#3b), so history stays truthful.
+- An unknown theme still falls back to defaults rather than failing (Step 6), so a typo on the
+  site is a missing seasonal image, never a broken page.
+
+## Step 5 — Display order and the primary image
+
+**Decision (7.1): approval order is the display order, the first approved leads, and any
+approved image can be promoted.** The same shape as the drop name in Flow 1 — a default that is
+right most of the time, correctable in place when it is not.
+
+- **Order within a theme is the order things were approved.** No ranking step, no drag handles
+  on a phone.
+- **First approved is primary**, which is a decent guess: people tend to approve their favourite
+  first, and on a short round it is often the only one.
+- **`[Make primary]`** sits on any approved image from the product's status card (Flow 4,
+  Step 4). One tap, and it moves that image to the front of *its own theme's* set — promoting a
+  holiday image never disturbs the defaults.
+
+```
+     🖼  HG-002 · 3 approved
+
+         1  Morning counter        default    ★ primary
+         2  Shelf still life       default       [Make primary]
+         3  Holiday mantel         holiday    ★ primary (holiday)
+```
+
+**Why a default rather than a question.** Flow 2 refused to ask 37 questions on the happy path,
+and this is the same trade: ordering matters for one image per theme, is usually already right,
+and is cheap to fix later. Asking at approval time would put a decision on every product to
+improve the few where the guess is wrong.
+
+**Why an action rather than nothing.** The primary image is the one the site leads with, so it
+is the one place "close enough" is visible to customers. That is worth one button.
+
+Every promotion is a change to what is live, so it posts the same notice with the same one-tap
+revert as an approval (Step 6) — it is a publishing action, not a preference.
+
+## Step 6 — What approval changes, now that sets exist
+
+Approving an image adds it to **its own theme's set** for that product — the campaign the idea
+was drafted under (#3b), or defaults if there was none. It does not displace anything.
+
+This sharpens #4's live-change notice, which was written when the image set was flat:
+
+```
+🔄  HG-002's holiday images changed — "Holiday mantel" is now primary.
+     Approved by @ellie · 2 holiday images · defaults unchanged.   [Revert]
+```
+
+Naming the set matters. "HG-002's images changed" is alarming and vague when it might mean the
+everyday shots on a live product page; "holiday images changed, defaults unchanged" is the
+sentence that tells someone whether to care.
+
+## Step 7 — When there is nothing to serve
+
+Because approval reaches the site with nobody in between, **this endpoint is on the page-render
+path**. It is therefore built to be boring:
+
+| Situation | Response |
+|---|---|
+| SKU has approved images | 200, images in display order |
+| SKU exists, no approved images yet | 200, `"images": []` |
+| SKU unknown to us | 200, `"images": []` |
+| Theme unknown to us | 200, defaults, `served_theme: "default"` |
+
+**A well-formed request never fails.** An empty array is a real answer and the site keeps its
+own fallback — the white-background product photo it already has. Nothing we do should be able
+to take a product page down, and a SKU we have never heard of is not an error: per #4b the site
+decides what it lists, so it is simply a question we have no answer to yet.
+
+## Step 8 — People, not programs
+
+The same images are reachable by anyone doing marketing or social, without a folder or a login
+(Flow 0, Step 5 — this is Drive's actual job, done without Drive). Currently: the Slack approval
+message holds the image, and the CSV export carries the links. **Next:** `/shots images HG-002`,
+recorded in REQUIREMENTS Part 4.
+
+## Branches and failure cases
+
+| What happens | System response |
+|---|---|
+| The lookup is down | The site's own fallback renders the white-background photo. The integration should be written to expect that; this is stated in the integration message. |
+| A product is archived while the site still lists it | Images keep being served (#6, #4b). Archive hides it from *our* queues, never from the site. |
+| An approved image is un-approved | It leaves the lookup; the URL stays valid but is no longer returned. Nothing cached can resurrect it, because the *answer* is short-cached and the URL is per-version (#4). |
+| The site asks for a theme nobody ever created | Defaults, with `served_theme: "default"`. Indistinguishable from "this SKU has no holiday images" — which is why theme names are chosen from a list rather than typed (Step 4). |
+| A source photo is replaced after images were approved | Approved images stay live and keep serving; each records the source version it came from (#11). |
+| A multi-product image | Appears in the primary SKU's set. Featured SKUs have it as a related image, never primary (#10, Flow 3 Step 8). |
+| Someone wants a non-square crop for social | Not served. Ratio variants are an approved-image add-on and still deferred (#15). |
+
+## Requirements this flow exercises
+
+ASSUMPTIONS #4 (lookup, immutable URLs, approval as publication, live-change notice) ·
+#4a (no platform connector, no resizing) · #4b (**the site decides what it lists; themes are a
+request parameter**) · #4c (about three images per page) · #3b (campaign sets — **largely resolved**, Step 3) · #6 (**resolves its
+open question**: archived products keep being served) · #10 (multi-product images) ·
+#11 (source photo versions) · #15 (square only) · #16 (`origin` per image).

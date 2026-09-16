@@ -88,10 +88,10 @@ Format for each entry:
 #### 3b. What should AI-drafted ideas be styled *against*?
 - **Assumption:** Two layers of plain text the team owns:
   1. **House style** — a short editable blurb describing the brand's look ("warm, lived-in, natural light, no people, minimal props, a little mess"). Applies to every draft. ~~**Seeded on install** from the 16 existing ideas plus product data and shown for the team to edit, rather than asked for cold.~~ **[revised — see below.]**
-  2. **Campaign theme** — an optional overlay applied to one batch of drafts ("holiday mantel, evergreen, candlelight" for Q4; "Halloween" in October). Switched on for a run, then off.
+  2. **Campaign theme** — an optional overlay applied to one batch of drafts ("holiday mantel, evergreen, candlelight" for Q4; "Halloween" in October). Switched on for a run, then off. **[revised — USER_FLOWS Flow 7, Step 4]** A theme is a **named thing, not a sentence**: a short stable **name** the site requests (`halloween`) plus the free-text **look** that steers drafting. Setting a campaign is *pick an existing theme or create one*, so October's images join the `halloween` set the site already asks for instead of spawning a second string beside it — picking is easier than typing, which is the only reliable way to keep a controlled vocabulary controlled. The look is editable; **the name is not**, because renaming would silently break a live page.
 - **Why:** The 16 existing ideas share an obvious voice, so a style is derivable. But they are 4–6 word fragments ("gift-y", "styled on a sofa"), and few-shotting them would teach the model to write fragments exactly where #9 commits to detailed, structured scenes. They are also **6 of 16 holiday**, which is campaign bleed rather than house style — baking that into every draft puts evergreen on a patio shot in July. Splitting the two layers gives the team a lever they would otherwise only have by rejecting ideas one at a time, forty times.
 - **What it changed:**
-  - Two settings fields, both plain text, both editable from Slack.
+  - Two settings fields: the house style blurb (plain text), and the campaign theme — which is now a named theme with a look, not a plain-text field (see above).
   - ~~Install shows a **seeded style blurb to confirm or edit**, never a blank box.~~
   - **[revised — USER_FLOWS Flow 0, Step 3] Seeding at install was not possible.** The seed data is the 16 existing shot ideas, and those arrive by CSV — *after* install. Flow 0 ended with an empty database while Flow 1 listed a confirmed blurb as a precondition, so each flow expected the other to have done it. What replaced it:
     - **Setup asks the team to describe their look, in their own words** (skippable, so install never blocks; skipping means ideas draft from product data alone and the first import says so once). An example is shown as guidance, never as a prefilled value.
@@ -100,10 +100,10 @@ Format for each entry:
   - **Themed batches are a first-class action:** re-draft ideas for any set of products under a campaign theme — the Q4 campaign the brief names, Halloween, spring. A product can carry a seasonal shot and an everyday shot.
   - The campaign theme is recorded on the idea, so approved images know which campaign produced them.
   - **Tension with #5a:** done is product-level at 2+ approved images, so a themed round for an already-done product moves no progress number. Themed batches therefore need to be tracked as their own run. This is exactly the blind spot #5a flagged, arriving sooner than expected — **watch it.**
-  - **Seasonal swap is manual.** Approval is what changes live images (#4), so a seasonal shot goes live on approval and the everyday shot returns when someone re-approves it. The image set per SKU stays flat — campaign is metadata on an image, not a container.
+  - ~~**Seasonal swap is manual.**~~ **[revised — see #4b]** Campaign is still metadata on an image rather than a container, but the image set per SKU is **no longer flat**: it is grouped by theme at request time. Approving a holiday shot adds to that SKU's holiday set; it does not displace the everyday images, and nobody has to re-approve anything to switch back. The swap is not manual and not scheduled — **it is the caller's question.**
   - **Mitigation:** a campaign carries an **end date** whose only job is to post a reminder — "Halloween is over; 12 products are still on seasonal shots" — with the one-tap revert #4 already provides. That buys most of the safety of scheduled swapping for none of the machinery. Reminders are already a dependency per #5a.
-  - **Next, not now:** campaign *sets* with date windows, where the per-SKU lookup serves whichever set is active and seasonal images expire on their own. Deferred for the scheduler, the more complex lookup, and a new failure mode (an expired set leaving a SKU short of images). Because every image records its campaign, this stays available later with no migration.
-  - **Failure this prevents:** pumpkins on a product page in February — the "wrong image live for three weeks" incident from the brief, seasonally dressed.
+  - ~~**Next, not now:** campaign *sets* with date windows, where the per-SKU lookup serves whichever set is active and seasonal images expire on their own.~~ **[revised — see #4b and USER_FLOWS Flow 7]** Mostly unnecessary, because the **caller asks for the theme**. The site owns the calendar, so there is no scheduler, no active-set state, nothing to expire, and no SKU left short — an unthemed SKU falls back to its defaults. What stays deferred is only the part that was really about scheduling: *us* deciding when a season starts, which we now never do.
+  - **Failure this prevents:** pumpkins on a product page in February — the "wrong image live for three weeks" incident from the brief, seasonally dressed. **[revised]** Now prevented structurally rather than by reminder: in February the site stops asking for holiday images, and the defaults come back on their own.
 
 ### 4. Does "on the product page" have to be verified, or is "handed to the web person" enough?
 > _To revisit during REQUIREMENTS review: the caching/immutable-URL, live-change notice + revert, image ordering, and deferred resizing details below were suggested defaults, not yet confirmed._
@@ -126,6 +126,33 @@ Format for each entry:
 - **Assumption:** We don't know or integrate with their site platform. The web developer does a one-time integration against our per-SKU lookup.
 - **Why:** The brief says only "their own site," and lists the toolkit as Google Docs/Sheets, Slack, and Gmail.
 - **What it changed:** No Shopify/Squarespace/etc. connector in scope. Hosted platforms may prefer uploaded images over external URLs, so a platform connector is a "next" item once we know what they run. Image resizing and thumbnails are also deferred; we serve the full-size approved image.
+
+#### 4b. The site already knows which SKUs it lists, and asks for images by SKU **and theme**
+- **Question:** does our lookup have to tell the site what to show, or does the site already know?
+- **Assumption:** The web developer's system **already determines programmatically which SKUs appear on the site**. Our lookup is only ever asked about a product the site already intends to display. It also accepts an optional **theme**: the front end asks for "HG-002, holiday" and gets the holiday images, or **the defaults if that SKU has no holiday version**.
+- **Why:** They have a real storefront with a product catalogue driving it; deciding what is listed is the thing a storefront already does, and nothing in the brief suggests otherwise. Given that, the calendar is also the site's to keep — it knows when its holiday campaign starts far better than we do.
+- **What it changed:**
+  - **The lookup is a question-answering service, not a source of truth about the catalogue.** No "list all SKUs" endpoint is needed for the site to work, and a SKU we know nothing about is simply a question with an empty answer.
+  - **Themes are a request parameter with a fallback**, which is a much smaller thing than what #3b deferred. See below.
+  - **Archiving stops being a publishing switch.** Archived products keep being served (resolving the open question in #6): archive is *our* workflow state — hidden from queues, status and drafting — and the site independently decides what it lists. A product hidden from Ellie's queue but still on the site must not lose its images.
+  - **Robustness matters more than correctness at the edge.** Because approval reaches the site with nobody in between (#4), the lookup is on the page-render path: a well-formed request never fails, and "no images" is a valid answer the site can fall back from.
+
+- **This largely resolves what #3b deferred, by moving the decision to the caller.** #3b put "campaign sets with date windows" in *next, not now*, because it needed a scheduler, a set-aware lookup, and it introduced a failure mode where an expired set leaves a SKU short of images. **The front end asking for a theme removes all three:**
+  - No scheduler — the site owns the calendar and simply stops asking for `holiday`.
+  - No expiry and no active-set state on our side — there is nothing to expire.
+  - No "SKU left short" — the fallback to defaults *is* the answer to a missing themed set.
+  - It also dissolves #3b's named failure, pumpkins on a product page in February: February simply stops asking for holiday images. The end-date reminder and one-tap revert stay useful, but they are no longer the only thing standing between the team and a stale seasonal image.
+  - What remains deferred from #3b is only the part that was genuinely about scheduling: **us** deciding when a season starts. We never do. That is the caller's job now.
+
+#### 4c. How many images does a product page actually use?
+- **Question:** what is a "full" gallery on their site — one hero image, three, eight?
+- **Assumption:** **About three.** We do not know, and the site is not ours to inspect (#4a), so this is a working number, not a fact.
+- **Why:** The brief's own target is "2–3 approved images matching the shot idea", which is the only number anyone has written down. Three is also unremarkable for a home-goods product page: a hero plus two supporting shots.
+- **What it changed:**
+  - **A themed request returns themed images first, then defaults** (USER_FLOWS Flow 7, Step 3). With a three-image gallery, one holiday shot plus two everyday shots fills the page and leads with the season — which is the common case, since a campaign round usually produces one good seasonal scene per product, not three.
+  - **Approved-image counts are tracked per SKU, split by theme, and reported** (#5, Flow 4). That is what makes "this product would show a thin gallery" visible, and generating one more is then a decision someone can actually make.
+  - **Tension with #5a, recorded rather than resolved:** done is **2+** approved images, but the page wants about **3**. A product can be *done* and still render one image short. These are deliberately kept as two different signals — done is the brief's own floor and the thing Maya counts, while "thin" is a quality nudge that never blocks a launch. **Watch:** if most products sit at exactly 2, the target and the definition of done have drifted apart and one of them should move.
+  - **If the real number turns out to be one**, themed-first-then-defaults quietly becomes a strict swap, and nothing breaks. **If it is eight**, the whole catalogue is thin and the candidates-per-round setting (#13) is the lever.
 
 ### 5. What does Maya mean by "see where things stand": per product, per launch, or spend?
 - **Assumption:** Maya wants **on-demand answers** at three zoom levels: overall, per launch or drop, and per product. Each answer covers progress by stage, spend, and what's stuck. She asks the bot instead of asking Ellie. The same report can optionally be **scheduled** (daily or weekly) for anyone who wants it pushed to them.
@@ -158,6 +185,7 @@ Format for each entry:
   - Import treats SKU as a unique key; consecutive numbering isn't checked.
   - **Nothing is deleted based on its absence from an import.** Products, ideas, and images stay in the database even if a later CSV leaves them out (see #12).
   - **Archive, not delete:** any SKU can be archived. Archived products are hidden from review queues, status reports, and idea drafting, but their data and history remain and they can be restored.
+  - **[resolved — #4b, USER_FLOWS Flow 7] Archived products keep being served.** Archive is *our* workflow state, not a publishing switch: the site decides independently what it lists (#4b), so a product hidden from Ellie's queue but still on the site must not lose its images. Archiving never breaks a live page.
   - **[revised — USER_FLOWS Flow 1, Step 4] Archive means "not right now," not "dead."** A team may archive a product that is only seasonally available, then want it back to shoot under a new theme. So **a SKU appearing in an import is unarchived**, named in the import summary (not just counted) with a one-tap undo, and returns with its full history. The undo sits in the same message as the campaign question, which is what makes it safe: drafting has not started, so a stale export that resurrects thirty products costs one tap to reverse and nothing to spend.
     - **Watch:** an unarchived seasonal product may already have 2+ approved images, so it reads as **done** (#5a) even though it was re-imported precisely because it needs new themed shots. It appears in no "needs work" count. That is why the summary names these products rather than folding them into a number — and it is #3b's tension with #5a firing again.
 

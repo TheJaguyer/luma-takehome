@@ -10,14 +10,14 @@
 > changed recorded underneath: #1 (approver as a role), #2a (channel move), #3b (house style
 > asked at setup), #4 (Drive cut), #6 (archive means "not right now"), #12 (rejection reserved
 > for broken identity; bulk accept; idempotent re-import). The items below are what remains.
-- [ ] **#4 — CDN/serving defaults** (suggested, not confirmed):
-  - Immutable per-version image URLs plus a per-SKU lookup.
-  - Slack notice and one-tap revert when a SKU's live images change.
-  - Image display order with a primary image.
-  - Resizing/thumbnails deferred.
-  - _(Drive is cut and #4 is amended — see the note at the top of this section.)_
-- [ ] **#6 — Archived SKUs:** does the CDN lookup keep serving their approved images? (Suggested default: yes, so archiving never breaks a live page.)
-  - _(Import-unarchives-a-SKU is settled and #6 is amended. The CDN question above is still open.)_
+- [x] **#4 — CDN/serving defaults: confirmed and extended (USER_FLOWS Flow 7).**
+  - Immutable per-version image URLs plus a per-SKU lookup. **Caching splits in two:** image URLs cache forever (immutable by construction), the lookup response caches for seconds — that split is what makes "approval = live" true in practice.
+  - Slack notice and one-tap revert when a SKU's live images change, **naming which theme's set changed** ("holiday images changed, defaults unchanged") — the flat-set wording was alarming and vague once sets exist.
+  - **Display order is approval order; first approved is primary; `[Make primary]` promotes any approved image** within its own theme. A promotion is a publishing action and posts the same notice and revert.
+  - **Themes are a request parameter** (`?theme=holiday`), themed images first then defaults, `served_theme` says what was actually served (#4b, #4c).
+  - **A well-formed request never fails** — unknown SKU, unknown theme, or no images all return 200 with a usable answer, because the lookup sits on the page-render path.
+  - Resizing/thumbnails deferred. Drive is cut — see the note at the top of this section.
+- [x] **#6 — Archived SKUs: settled (Flow 7 / #4b).** **Yes, they keep being served.** Archive is *our* workflow state — hidden from queues, status and drafting — not a publishing switch. The site decides independently what it lists (#4b), so a product hidden from Ellie's queue but still on the site must not lose its images. Archiving never breaks a live page.
 - [ ] **#7 — Priority:** only Ellie can set it, or anyone (consistent with force-approve in #1)?
   - Note: **approver** is now an explicit configurable role (#1, Flow 0), so this probably
     resolves to "only an approver" — still open.
@@ -98,7 +98,7 @@ Options:
 - **C. AI-suggested ideas.** For products with no idea (most of the catalog, and all of the 40-product drop), propose ideas for Ellie to accept.
 - **D. Idea cleanup.** An LLM turns a vague idea plus product data plus Notes into a concrete prompt; Ellie sees or approves the rewrite before anything is generated.
 
-Settled (ASSUMPTIONS #3b): drafting is anchored by a **house style blurb** (seeded from the 16 existing ideas, editable) plus an optional **campaign theme** overlay per batch — which makes themed runs (Q4, Halloween, spring) a first-class action rather than a prompt-editing exercise.
+Settled (ASSUMPTIONS #3b): drafting is anchored by a **house style blurb** (written by the team at setup, editable) plus an optional **campaign theme** overlay per batch — a *named* theme (`halloween`, what the site requests) with a free-text look (what steers drafting) — which makes themed runs (Q4, Halloween, spring) a first-class action rather than a prompt-editing exercise.
 
 Settled (ASSUMPTIONS #3, #3a):
 - **A + C + D, gated.** Existing sheet ideas are imported. Products without one get 2–3 AI-drafted ideas. The team approves, edits, or replaces ideas in Slack **before** any image is generated.
@@ -198,10 +198,11 @@ Options:
 
 Note: We have no site integration, so "on the product page" can't be verified automatically.
 
-**Decision (ASSUMPTIONS #4, #4a):** Publishing to the storefront is out of scope. Instead:
+**Decision (ASSUMPTIONS #4, #4a, #4b, #4c — detailed in USER_FLOWS Flow 7):** Publishing to the storefront is out of scope. Instead:
 - A **per-SKU image lookup** that the web developer integrates once. After that, approved images reach the site with no manual upload.
-- Immutable, unique URL for each image version. Display order with a primary image.
-- Approval changes what's live, so each live change posts to Slack with a one-tap **revert**.
+- Immutable, unique URL per image version; display order is approval order, first approved is primary, promotable with `[Make primary]`.
+- **The site asks by SKU and optionally by theme.** It already knows which SKUs it lists (#4b), and it owns the calendar — so `?theme=holiday` returns holiday images first then defaults, and February simply stops asking. This is what makes seasonal swapping need no scheduler on our side.
+- Approval changes what's live, so each live change posts to Slack naming the theme set, with a one-tap **revert**.
 - Status ends at "approved & ready." A storefront connector and image resizing are "next."
 
 ---
@@ -220,6 +221,7 @@ Note: We have no site integration, so "on the product page" can't be verified au
 
 To keep or cut. Each needs a reason either way.
 
+- [x] **Approved-image counts per SKU, split by theme (ASSUMPTIONS #4c, USER_FLOWS Flows 4 and 7).** A flat total stopped being enough once the lookup groups by theme. Status reports the split per product and a "would show a thin gallery" count with the cost of filling it. **Thin is a separate signal from done:** done is 2+ (#5a, Maya's number), a page uses about 3 (#4c), so a product can be done and still render one short — a nudge with a price tag, never a blocker.
 - [x] **Status for Maya (ASSUMPTIONS #5, USER_FLOWS Flow 4).** On-demand Slack command at overall, drop, and SKU level, showing stage counts, spend, and stuck items. **A drop also reports itself** — import summary, a daily post while open, a completion post — and nothing between drops. Spend comparisons live in their own `/shots spend`, where the per-drop breakdown and "most spent on one product" carry more signal than a calendar comparison (#2b, #13).
 - [x] **Launch-drop tracking**, covered by the drop-level status above ("32/40 done, 5 awaiting Ellie, 3 in generation") — and by the drop's own daily post while it is open.
 - [x] **Budget guardrails (ASSUMPTIONS #13).**
