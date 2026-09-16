@@ -22,6 +22,8 @@ Format for each entry:
   - Others get a separate, deliberate "force approve" action rather than the same button. It takes more friction than Ellie's approve, so it stays the exception.
   - Every approval records **who** approved and whether it was forced, so Ellie can see what was decided without her and the audit trail stays honest.
   - Comments are optional and are never a required step in the flow.
+  - **The same rule applies at both decision points** — idea approval and image approval (#3). One rule to learn, and Ellie stays the taste filter at the moment spend begins, which is exactly Maya's "don't burn our budget on stuff she'll reject."
+  - **Cost:** the 40-product drop needs ~40 idea approvals *and* up to 40 image approvals from the person who also runs half of everything else. That makes **batch idea review load-bearing, not a nice-to-have** (#3): a screen of drafted ideas has to clear in a handful of taps, not forty. This is the first place the design strains under the drop, and the first thing to watch after it ships.
 
 ### 2. Which tool does Ellie actually live in on her phone: Slack or Gmail?
 - **Assumption:** **Slack is primary.** Email was only in the loop because the photographer was an outside party. With AI generation, the photographer is usually unnecessary, so email drops out of the approval path.
@@ -30,6 +32,17 @@ Format for each entry:
   - Approval, discussion, and status all live in a Slack app. No email-based approval.
   - **Photographer escape hatch:** the Slack app accepts human-shot photos uploaded against a request. A freelancer can be added to the channel when one is used, and their shots go through the same approval flow as AI candidates.
   - **Email as a digest only (to be designed):** a daily email, or one at a frequency the user picks, summarizing pending decisions, built from the same data. It's a summary and nudge, not a place to act, so Slack stays the single place decisions happen.
+
+#### 2a. Which Slack channel do candidate images land in?
+- **Assumption:** A **dedicated review channel** (e.g. `#shot-reviews`), separate from the team's general channel. Candidates post there in the open, the team can weigh in before Ellie decides, and Ellie approves in-channel. Approvals and live-image changes (#4) post to the same channel.
+- **Why:** This team's decisions are already public: ideas get 👍'd in Slack, opinions happen in threads, and Ellie forwards favorites for comment today. Keeping candidates visible preserves that, and it gives force-approvers (#1) somewhere to look when Ellie is away — a DM-to-Ellie design would hide the queue from everyone else. A *separate* channel is what stops ~160 candidate images during the 40-product drop from burying the team's other conversation; anyone who doesn't want the volume can mute it.
+- **What it changed:**
+  - The review channel is configurable per install; one channel by default.
+  - **One message per request, not per image.** All candidates for a product arrive in a single post with numbered actions, so the drop is ~40 messages, not ~160.
+  - Discussion happens in that message's thread, keeping the channel scannable.
+  - No DM approval path to build. One surface, one set of interactions.
+  - **Cost:** Ellie's rejections are public. That matches how it works today, so it isn't new — but it argues against demanding a written reason on reject (see REQUIREMENTS Step 5).
+  - Open: does **idea** review (#3, #9) share this channel or get its own? Same volume question, text instead of images.
 
 ### 3. Who writes shot ideas for the 40-product drop, and when?
 - **Assumption:** **AI drafts, Ellie picks, and only then do images get made.** For any product without a shot idea, the system drafts 2–3 ideas from the product data (name, category, color, material, notes). The team approves, edits, or writes its own in Slack. No image is generated until an idea is approved.
@@ -46,6 +59,22 @@ Format for each entry:
   - CSV becomes an **import format** (new products and drops come in this way; the brief requires it) and an **export format** (an updated CSV at the end), not something we keep in sync.
   - Re-imports must merge into existing records by SKU rather than overwrite state (see #12).
   - Idea capture, approvals, and status live in the app/Slack, not in sheet columns.
+
+#### 3b. What should AI-drafted ideas be styled *against*?
+- **Assumption:** Two layers of plain text the team owns:
+  1. **House style** — a short editable blurb describing the brand's look ("warm, lived-in, natural light, no people, minimal props, a little mess"). Applies to every draft. **Seeded on install** from the 16 existing ideas plus product data and shown for the team to edit, rather than asked for cold.
+  2. **Campaign theme** — an optional overlay applied to one batch of drafts ("holiday mantel, evergreen, candlelight" for Q4; "Halloween" in October). Switched on for a run, then off.
+- **Why:** The 16 existing ideas share an obvious voice, so a style is derivable. But they are 4–6 word fragments ("gift-y", "styled on a sofa"), and few-shotting them would teach the model to write fragments exactly where #9 commits to detailed, structured scenes. They are also **6 of 16 holiday**, which is campaign bleed rather than house style — baking that into every draft puts evergreen on a patio shot in July. Splitting the two layers gives the team a lever they would otherwise only have by rejecting ideas one at a time, forty times.
+- **What it changed:**
+  - Two settings fields, both plain text, both editable from Slack.
+  - Install shows a **seeded style blurb to confirm or edit**, never a blank box.
+  - **Themed batches are a first-class action:** re-draft ideas for any set of products under a campaign theme — the Q4 campaign the brief names, Halloween, spring. A product can carry a seasonal shot and an everyday shot.
+  - The campaign theme is recorded on the idea, so approved images know which campaign produced them.
+  - **Tension with #5a:** done is product-level at 2+ approved images, so a themed round for an already-done product moves no progress number. Themed batches therefore need to be tracked as their own run. This is exactly the blind spot #5a flagged, arriving sooner than expected — **watch it.**
+  - **Seasonal swap is manual.** Approval is what changes live images (#4), so a seasonal shot goes live on approval and the everyday shot returns when someone re-approves it. The image set per SKU stays flat — campaign is metadata on an image, not a container.
+  - **Mitigation:** a campaign carries an **end date** whose only job is to post a reminder — "Halloween is over; 12 products are still on seasonal shots" — with the one-tap revert #4 already provides. That buys most of the safety of scheduled swapping for none of the machinery. Reminders are already a dependency per #5a.
+  - **Next, not now:** campaign *sets* with date windows, where the per-SKU lookup serves whichever set is active and seasonal images expire on their own. Deferred for the scheduler, the more complex lookup, and a new failure mode (an expired set leaving a SKU short of images). Because every image records its campaign, this stays available later with no migration.
+  - **Failure this prevents:** pumpkins on a product page in February — the "wrong image live for three weeks" incident from the brief, seasonally dressed.
 
 ### 4. Does "on the product page" have to be verified, or is "handed to the web person" enough?
 > _To revisit during REQUIREMENTS review: the caching/immutable-URL, live-change notice + revert, image ordering, and deferred resizing details below were suggested defaults, not yet confirmed._
@@ -75,6 +104,17 @@ Format for each entry:
     - Items stuck past a threshold.
   - Opt-in scheduled delivery of the same report (daily or weekly), sharing the report logic with the email digest from #2.
   - Requires: a **drop/batch** grouping for products (e.g., one per CSV import), **cost recorded per generation**, and a timestamp for each stage change to detect stuck items.
+
+#### 5a. What counts as "done" for a product?
+- **Assumption:** **The product (SKU) is the unit, and done = 2 or more approved images.** Status counts products, not requests: "32 of 40 done." Per #4, done means *approved & ready* — we don't verify the product page.
+- **Why:** The brief's target is "2–3 approved images matching the shot idea," so two is the floor it names. Product-level is also the shape of the question people actually ask: Maya asks whether the drop is ready, and the web person asks what a given product page should show. Counting per request would be more precise but hands Maya two numbers to reconcile.
+- **What it changed:**
+  - One progress number per drop and per catalog, derived from each SKU's approved-image count.
+  - Stage counts in status (#5) roll up to product state: ideas pending → generating → awaiting approval → approved & ready (done at 2+).
+  - Approved images still record which idea produced them, for provenance and regeneration — they just aren't *counted* per idea.
+  - **Cost:** a second idea for an already-done product moves no number. A Q4 campaign scene for a SKU that already has two everyday shots reads as no work outstanding. **Watch during the Q4 campaign:** if the team starts running deliberate second rounds per product, "done" probably has to become per-request after all.
+  - **Short rounds wait for a person.** When a round ends with fewer than 2 approved, the SKU sits at "needs more" and the Slack message carries a one-tap **generate more**. Nothing regenerates on its own: #13 already made extra rounds deliberate, and four rejections usually means the *idea* was wrong, so an automatic rerun buys four more of the same.
+  - **Consequence:** a SKU at 1-of-2 is blocked on nobody and appears in no queue. It surfaces only through the stuck-item list in status (#5) and through nudges, which promotes **reminders from a Part 3 extra to a dependency**. Rejection reasons feeding the next prompt (retry-with-feedback) is what makes round two better than round one rather than a rerun.
 
 ## Data (quirks in `data/catalog.csv`)
 

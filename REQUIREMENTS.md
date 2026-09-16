@@ -11,24 +11,36 @@
   - Image display order with a primary image.
   - Resizing/thumbnails deferred.
 - [ ] **#6 — Archived SKUs:** does the CDN lookup keep serving their approved images? (Suggested default: yes, so archiving never breaks a live page.)
+  - **Settled in USER_FLOWS Flow 1, Step 4:** archive means *not right now*, not *dead*. A SKU
+    appearing in an import is **unarchived**, named in the import summary with a one-tap undo,
+    and returns with its full history. Rationale: the common case is bringing a seasonal product
+    back to shoot under a new theme, and a Q4 export would otherwise silently omit the products
+    the campaign is for.
 - [ ] **#7 — Priority:** only Ellie can set it, or anyone (consistent with force-approve in #1)?
 - [ ] **#10 — Multi-product shots:** does an image count toward each featured SKU's 2–3 approved images, and does it appear in each featured SKU's CDN lookup or only the primary's?
 - [ ] **#12 — Interpretation check:**
   - New shot ideas from import skip change-review but still go through idea review.
   - Approved images stay live during re-review.
+  - **Refinement from USER_FLOWS Flow 1, Step 5 — needs confirming in #12 itself:** an
+    unreachable photo URL is no longer a rejection. Only a missing or duplicate SKU is
+    rejected. A row with a bad photo URL still imports; if the SKU has no photo in the
+    database the product is flagged **needs a source photo** (ideas still draft; generation
+    is blocked until a photo is uploaded per #11), and if it already has one, the existing
+    source photo version simply stands. Rationale: a rejected row is invisible once the
+    Slack message scrolls, while a flagged product sits in the queue, in status, and in nudges.
 
 ### B. Resolve remaining REQUIREMENTS decisions
-- [ ] **Step 1:** Slack capture of ad-hoc ideas (e.g., turning a Slack message into a request)? What does batch idea review look like on a phone for a 40-product drop?
+- [ ] **Step 1:** Slack capture of ad-hoc ideas (e.g., turning a Slack message into a request)? What does batch idea review look like on a phone for a 40-product drop? **Highest-risk open item** — #1 routes both approval stages through Ellie, so the drop only works if a screen of ideas clears in a few taps.
 - [ ] **Step 2:** Queue model beyond the priority flag (continuous vs. batched per import; ordering).
 - [ ] **Step 4:** Candidate storage and naming (SKU/request-based); photographer uploads enter the same flow (#2).
-- [ ] **Step 5:** Approval UX inside Slack:
-  - Presenting multiple candidates on a phone.
-  - Reject flow: reason or not.
+- [ ] **Step 5:** Approval UX inside Slack (channel settled in #2a):
+  - Presenting multiple candidates in one message on a phone.
+  - Reject flow: reason or not (#2a argues against requiring one).
   - "Almost — make it warmer" refinement.
   - Force-approve friction (#1).
 - [ ] **Part 2:** Fill the remaining rows of Maya's asks table ("AI just make the shots", "Ellie approves on her phone", "40-product drop").
 - [ ] **Part 3 extras, keep or cut each with a reason:**
-  - [ ] CSV import entry point (Slack file drop / email / web upload). **Must be demoed in the video.**
+  - [x] CSV import entry point — **settled: Slack file drop** (USER_FLOWS Flow 1, Step 1). **Must be demoed in the video.**
   - [ ] Retry with rejection feedback.
   - [ ] Pending-decisions email digest, and whether it needs a web app (#2; dashboard risk).
   - [ ] Reminders and nudges.
@@ -60,7 +72,7 @@
 
 Existing toolkit: **Google Sheets/Docs/Drive, Slack, Gmail.** Nothing else.
 
-**Definition of done (per request):** 2–3 approved images matching the shot idea, in the Drive folder, on the product page.
+**Definition of done (ASSUMPTIONS #5a):** the **product** is the unit — done = **2+ approved images** for that SKU, filed to Drive and served by the per-SKU lookup. "On the product page" is out of scope (#4); status ends at *approved & ready*.
 
 ## Facts that constrain the design
 
@@ -85,13 +97,15 @@ Options:
 - **C. AI-suggested ideas.** For products with no idea (most of the catalog, and all of the 40-product drop), propose ideas for Ellie to accept.
 - **D. Idea cleanup.** An LLM turns a vague idea plus product data plus Notes into a concrete prompt; Ellie sees or approves the rewrite before anything is generated.
 
+Settled (ASSUMPTIONS #3b): drafting is anchored by a **house style blurb** (seeded from the 16 existing ideas, editable) plus an optional **campaign theme** overlay per batch — which makes themed runs (Q4, Halloween, spring) a first-class action rather than a prompt-editing exercise.
+
 Settled (ASSUMPTIONS #3, #3a):
 - **A + C + D, gated.** Existing sheet ideas are imported. Products without one get 2–3 AI-drafted ideas. The team approves, edits, or replaces ideas in Slack **before** any image is generated.
 - The database is the source of truth. CSV is the import/export format only.
 
 - Existing ideas (ASSUMPTIONS #9) are expanded into 2–3 options: option 1 is a faithful rewrite of the original in the standard detailed format; options 2–3 are variations. The raw original is shown for context.
 
-Still open: Slack capture of ad-hoc ideas (B); what the batch idea-review UX looks like.
+Still open: Slack capture of ad-hoc ideas (B); what the batch idea-review UX looks like — **load-bearing**, since #1 puts idea approval on Ellie too (~40 idea approvals for the drop).
 
 **Decision:** _Partially settled; see above_
 
@@ -153,6 +167,8 @@ Options for how approval looks inside Slack (was: where Ellie approves):
 
 Settled (ASSUMPTIONS #1): Ellie is the default one-tap approver; anyone can force-approve with extra friction; every approval records who approved and whether it was forced; comments are optional.
 
+Settled (ASSUMPTIONS #2a): **A. Slack, in a dedicated review channel.** Candidates are public so the team can weigh in and force-approvers can find the queue. One message per request carries all of that product's candidates, so the 40-product drop is ~40 messages, not ~160. Discussion happens in the thread. Still open: whether idea review shares this channel.
+
 Sub-questions: Does rejecting ask for a reason, and does that reason feed a retry ("too staged")? What about "almost — make it warmer"?
 
 **Decision:** _TBD_
@@ -208,7 +224,7 @@ To keep or cut. Each needs a reason either way.
   - Cost tracked per generation.
   - Optional weekly/monthly/annual warning thresholds, posted to Slack; no hard stop.
   - Spend report comparing week-over-week and month-over-month (and longer), available on demand and scheduled.
-- [ ] **New CSV import path.** Options: upload to Slack (drop the file in a channel), email the CSV, or a web upload form. _Entry point TBD._
+- [x] **New CSV import path (USER_FLOWS Flow 1).** **Slack file drop:** the CSV is dragged into the review channel and the bot picks up the attachment. No command, no page to visit; the video demo is one gesture. Email and web upload rejected — a web form repeats the abandoned-dashboard shape. `/shots import <url>` is additive and deferred.
 - [x] **Import merge rules (ASSUMPTIONS #12).**
   - Tolerant validation, reporting rejected rows.
   - New SKUs are created.
@@ -219,10 +235,10 @@ To keep or cut. Each needs a reason either way.
 - [x] **Handling Notes (ASSUMPTIONS #7).** Context only: fed into idea drafting and shown in review. No automatic parsing.
 - [x] **Priority flag (ASSUMPTIONS #7).** Set by Ellie; top of every queue and list; called out in status and scheduled reports.
 - [x] **Multi-product scenes (ASSUMPTIONS #10).** Group multiple SKUs into one shot: the primary SKU is the edit source, featured SKUs go in as `image_ref`. Easy grouping in idea review. Needs a fidelity test. Open: does it count toward, and appear in, featured SKUs' image sets?
-- [ ] **Retry with feedback.** A rejection reason feeds back into the next prompt.
+- [ ] **Retry with feedback.** A rejection reason feeds back into the next prompt. Raised in value by #5a: since extra rounds are manual and rejection usually indicts the idea, feedback is what makes round two differ from round one. Still open whether a reason is required or optional on reject (#2a argues optional — rejections are public).
 - [x] **Photographer upload (from ASSUMPTIONS #2).** A Slack action to attach human-shot photos to a request; the freelancer is invited to the channel when needed; shots enter the normal approval flow.
 - [ ] **Pending-decisions email digest (from ASSUMPTIONS #2, design TBD).** Daily or user-set frequency; summarizes Slack state; read-only. Open question: does this need a web app? Watch the "dashboard nobody logged into" risk: an email that comes to them is different from a page they have to visit.
-- [x] **Archive SKUs (ASSUMPTIONS #6).** Hide a product from queues, status, and idea drafting without deleting it; restorable. Open: do archived products' approved images keep being served by the CDN lookup?
+- [x] **Archive SKUs (ASSUMPTIONS #6).** Hide a product from queues, status, and idea drafting without deleting it; restorable. **Archive means "not right now," not "dead"** — an import containing an archived SKU unarchives it (USER_FLOWS Flow 1). Open: do archived products' approved images keep being served by the CDN lookup?
 - [ ] **Aspect-ratio variants of approved images (ASSUMPTIONS #15).** Request 4:5 / 9:16 / 16:9 for an approved square image; generate (padded source) and re-approve; served alongside the square. Core output stays square 2048×2048. Padding approach untested.
 - [x] **AI provenance (ASSUMPTIONS #16).**
   - Every image stores origin (`ai` / `photographer`) plus model and source version.
@@ -230,7 +246,7 @@ To keep or cut. Each needs a reason either way.
   - `origin` is exposed in the CDN lookup.
   - AI-origin files carry embedded AI-generation metadata.
   - How to disclose it to shoppers is the team's call.
-- [ ] **Reminders and nudges.** Ping Ellie when candidates have waited more than N days, or when launch is at risk.
+- [x] **Reminders and nudges.** **Dependency, not an extra (ASSUMPTIONS #5a).** Short rounds wait for a person, so a SKU at 1-of-2 approved is blocked on nobody and sits in no queue — nudges and the stuck-item list are the only things that surface it. Ping when candidates have waited more than N days, when a product is short of its 2, or when a drop deadline is at risk.
 - [x] **Replace source photo (ASSUMPTIONS #11).** Per-SKU upload in Slack; versioned; originals kept.
 - [ ] **Audit trail.** Who approved what, and when, for each image.
 - [ ] **Updated CSV export** with status and image-link columns.
@@ -246,6 +262,7 @@ Explicitly deferred, with the reason recorded in ASSUMPTIONS.md.
 | Tracking discontinued products | Not our problem to solve; archive covers clutter | #6 |
 | Automatic source-photo review and touch-up | Color-shift risk, false alarms on dark products; manual replace covers it | #11 |
 | Automated candidate accuracy screening (vision-model QC before Slack) | Ellie's approval is the check for now; revisit if spend or rejection rates justify it, or if 14a proves false | #14, #14a |
+| Scheduled seasonal swaps (campaign sets with date windows) | Needs a scheduler and a set-aware lookup; a campaign end-date reminder plus one-tap revert covers the risk for now. Campaign is recorded per image, so this needs no migration later | #3b |
 
 ## Non-functional requirements
 
