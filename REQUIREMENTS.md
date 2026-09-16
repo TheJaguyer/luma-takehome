@@ -1,6 +1,11 @@
 # Requirements
 
-> Status: **DRAFT — decisions pending.** Options below are brainstormed; nothing is decided until the **Decision** line is filled in. All 16 questions in ASSUMPTIONS.md are answered; the items below must be resolved **before system design**.
+> Status: **Nearly ready for system design.** All questions in ASSUMPTIONS.md are answered, and
+> [USER_FLOWS.md](USER_FLOWS.md) has walked all seven flows end to end — which settled most of
+> what was open here and amended a dozen assumptions along the way.
+>
+> **Three things remain:** aspect-ratio variants (#15), the stack and hosting choice, and the
+> in / out / next prioritisation for the ~1-day build.
 
 ## TODO before system design
 
@@ -23,29 +28,26 @@
   **One rule everywhere a decision is made:** approving an idea, approving an image, promoting an
   image to primary, and setting priority all behave identically.
 - [x] **#10 — Multi-product shots: settled (Flow 3, Step 8).** Counts for the **primary SKU only**; featured SKUs get it as a related image — attached, not counted, never primary. A product is only counted on images it was the `source` for, since `image_ref` fidelity is unverified. Revisit if image-quality testing (Part 4) shows it is good.
-- [ ] **#12 — Interpretation check:**
-  - New shot ideas from import skip change-review but still go through idea review.
-  - Approved images stay live during re-review.
-  - _(The photo-URL refinement is settled and folded into #12.)_
+- [x] **#12 — confirmed, and amended in place.** New shot ideas from import skip change-review but still go through idea review. Approved images stay live during re-review. The photo-URL refinement, the bulk-accept rule, idempotent re-import, and the unified keep/start-over question are all folded into #12.
 
 ### B. Resolve remaining REQUIREMENTS decisions
 - [x] **Step 1 — settled in USER_FLOWS Flow 2.** Batch idea review is **one card per product, posted at once**, nothing pre-selected: the 37-card volume is a *reading* cost only the approver pays one tap at a time, while the cards' real job is being individually addressable so anyone can weigh in on the few they care about. Decided cards collapse in place, priority posts first. **Slack capture of ad-hoc ideas is cut** (Part 4) — most lost ideas were for products that now get drafted options anyway, and the sheet's Shot Idea column still reaches the system on the next import.
-- [ ] **Step 2:** Queue model beyond the priority flag (continuous vs. batched per import; ordering).
+- [x] **Step 2 — settled across USER_FLOWS Flows 1, 2 and 4.** **Batched per import:** each CSV import creates a named drop (Flow 1), which is the unit Maya's status reports on and the unit that reports itself daily while open (Flow 4). Within a batch, **ordering is priority first, then the file's own order**; decided cards collapse so the queue shrinks as it is worked (Flow 2). Priority is set by an approver, or by anyone with force-approve friction (#7). Nothing is continuous, because nothing needs to be — drops happen a handful of times a year (#2b).
 - [x] **Step 4 — settled across USER_FLOWS Flows 3, 5, 6 and 7.** Candidates live in our storage, SKU-named, each recording its idea, round, model, cost, origin and **source photo version**. Only approved images get an immutable public URL and enter the per-SKU lookup; candidates are never served (#4). Photographer uploads enter the identical flow (#2, Flow 5), differing only in recorded origin.
-- [ ] **Step 5:** Approval UX inside Slack (channel settled in #2a; idea review shares it, #2b):
-  - Presenting multiple candidates in one message on a phone.
+- [x] **Step 5 — settled in USER_FLOWS Flow 3.** Approval UX inside Slack (channel settled in #2a; idea review shares it, #2b):
+  - Multiple candidates in one message: **a numbered 2×2 contact sheet to triage, then full size beside the source photo to decide.** This deliberately breaks the one-tap rule used everywhere else — with QC deferred, that comparison is the only fidelity check in the system, so it should cost a tap. Triage is ~37 screens for a drop rather than ~150 to scroll.
   - ~~Reject flow: reason or not~~ — settled (Flow 3, Step 5): free to reject, required to regenerate.
   - ~~"Almost — make it warmer" refinement~~ — settled: that sentence is what `[Generate 4 more]` asks for, and `[More like the one I approved]` covers the common case without typing.
   - ~~Force-approve friction (#1)~~ — settled (Flow 3, Step 6): a required sentence saying why, posted publicly with the approval.
-- [ ] **Part 2:** Fill the remaining rows of Maya's asks table ("AI just make the shots", "Ellie approves on her phone", "40-product drop").
-- [ ] **Part 3 extras, keep or cut each with a reason:**
+- [x] **Part 2 — filled in.** Every row of Maya's asks table now points at the flow that answers it.
+- [x] **Part 3 extras — every item decided with a reason**, except aspect-ratio variants:
   - [x] CSV import entry point — **settled: Slack file drop** (USER_FLOWS Flow 1, Step 1). **Must be demoed in the video.**
-  - [ ] Retry with rejection feedback.
-  - [ ] Pending-decisions email digest, and whether it needs a web app (#2; dashboard risk).
-  - [ ] Reminders and nudges.
-  - [ ] Audit trail (effectively required by #1 force-approve and #16 provenance; confirm scope).
-  - [ ] Updated CSV export with status and image-link columns.
-  - [ ] Aspect-ratio variants of approved images (#15).
+  - [x] Retry with rejection feedback — **kept**: free to reject, a required sentence to regenerate (Flow 3).
+  - [x] Pending-decisions email digest — **deferred to Part 4** (Flow 4). Needs no web app; deferred because Slack now pushes what email was for.
+  - [x] Reminders and nudges — **kept, as a dependency**: channel posts naming products, never people (Flow 4).
+  - [x] Audit trail — **kept as data, no browsable surface** (Flow 4). A web data view is in Part 4.
+  - [x] Updated CSV export with status and image-link columns — **kept, and promoted to load-bearing** once Drive was cut.
+  - [ ] **Aspect-ratio variants of approved images (#15)** — the one Part 3 extra still undecided.
 - [x] **Setup / install (USER_FLOWS Flow 0).** The invite is the configuration: the channel the
   bot is invited to becomes the review channel, and the inviter becomes the **approver** by
   default (changeable at setup, and add/remove later via `/shots approvers`; the set is never
