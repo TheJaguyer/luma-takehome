@@ -152,6 +152,13 @@ export async function stuckListBlocks(items: ReturnType<typeof stuckItems>, reso
     if (group.length > 12) rows.push(`…and ${group.length - 12} more`);
     blocks.push({ type: "section", text: { type: "mrkdwn", text: `*${label}*\n${rows.join("\n")}` } });
   }
+  // The one stuck row with a fix that is not a tap on the row itself (Flow 6).
+  if (items.some((i) => i.waiting.what === "needs a source photo")) {
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: "📷 *Needs a source photo:* drop a photo in this channel and pick *A new product photo* — it replaces the source and generates in one gesture." }],
+    });
+  }
   return blocks;
 }
 

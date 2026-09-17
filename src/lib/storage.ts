@@ -30,6 +30,7 @@ export const keys = {
   sourcePhoto: (sku: string, version: number, ext: string) => `sources/${sku}/v${version}.${ext}`,
   candidate: (roundId: string, position: number) => `candidates/${roundId}/${position}.jpg`,
   contactSheet: (roundId: string) => `sheets/${roundId}.jpg`,
+  upload: (id: string, ext: string) => `uploads/${id}.${ext}`,
 };
 
 export function publicImageUrl(publicBaseUrl: string, key: string) {

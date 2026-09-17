@@ -37,6 +37,9 @@ settings:
   interactivity:
     is_enabled: true
     # request_url: https://<your host>/slack/events
+    # The product typeahead in the upload form (Flows 5 and 6) is a separate payload to Slack,
+    # so HTTP mode needs this URL as well as the one above. Socket Mode carries both.
+    # message_menu_options_url: https://<your host>/slack/events
   org_deploy_enabled: false
   socket_mode_enabled: true
   token_rotation_enabled: false

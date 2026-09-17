@@ -71,8 +71,9 @@ model Theme {
   createdAt DateTime @default(now()) @map("created_at")
 
   drops  Drop[]
-  ideas  Idea[]
-  images Image[]
+  ideas   Idea[]
+  images  Image[]
+  uploads Upload[]
 
   @@unique([teamId, name])
   @@map("themes")
@@ -151,6 +152,7 @@ model Product {
   ideas              Idea[]
   rounds             Round[]
   images             Image[]
+  uploads            Upload[]
 
   @@unique([teamId, sku])
   @@map("products")
@@ -361,13 +363,46 @@ enum CandidateState {
   FAILED // failed or moderated — refunded by Luma
 }
 
+/// Flow 5: a finished photo someone uploaded. It is a candidate awaiting a decision that never
+/// had a round — no idea, no model, no cost — so it lives beside Candidate rather than inside it.
+/// Approval creates an Image exactly as a generated candidate does.
+model Upload {
+  id               String   @id @default(cuid())
+  teamId           String   @map("team_id")
+  productId        String   @map("product_id")
+  themeId          String?  @map("theme_id") // which campaign set it joins; null = everyday
+  storageKey       String   @map("storage_key")
+  contentType      String   @map("content_type")
+  width            Int
+  height           Int
+  aiGenerated      Boolean  @map("ai_generated") // #16 — asked of every upload, never inferred
+  slackFileId      String?  @map("slack_file_id")
+  uploadedBy       String   @map("uploaded_by")
+  uploadedAt       DateTime @default(now()) @map("uploaded_at")
+  // Its own message in the channel, re-rendered in place like a round's (Flow 5, Step 2).
+  messageChannelId String?  @map("message_channel_id")
+  messageTs        String?  @map("message_ts")
+  declinedBy       String?  @map("declined_by")
+  declinedAt       DateTime? @map("declined_at")
+
+  product Product @relation(fields: [productId], references: [id])
+  theme   Theme?  @relation(fields: [themeId], references: [id])
+  image   Image?
+
+  @@index([productId, uploadedAt])
+  @@map("uploads")
+}
+
 /// An approved, published image (#4). Its public key is write-once; un-approving sets
 /// revokedAt and never touches the bytes.
 model Image {
   id          String    @id @default(cuid())
   teamId      String    @map("team_id")
   productId   String    @map("product_id")
-  candidateId String?   @unique @map("candidate_id") // null for photographer uploads (Flow 5, next)
+  candidateId String?   @unique @map("candidate_id") // null for photographer uploads (Flow 5)
+  uploadId    String?   @unique @map("upload_id")    // set instead, for an uploaded photo
+  // #16 asked, never inferred: true for everything generated, the uploader's answer otherwise.
+  aiGenerated Boolean   @default(true) @map("ai_generated")
   themeId     String?   @map("theme_id") // null = default set
   origin      ImageOrigin
   model       String?
@@ -386,6 +421,7 @@ model Image {
 
   product   Product    @relation(fields: [productId], references: [id])
   candidate Candidate? @relation(fields: [candidateId], references: [id])
+  upload    Upload?    @relation(fields: [uploadId], references: [id])
   theme     Theme?     @relation(fields: [themeId], references: [id])
 
   @@index([productId, revokedAt])

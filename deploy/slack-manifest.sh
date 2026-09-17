@@ -10,5 +10,6 @@ url="https://$host/slack/events"
 sed \
   -e "s#^      \# url: .*#      url: $url#" \
   -e "s#^    \# request_url: .*#    request_url: $url#" \
+  -e "s#^    \# message_menu_options_url: .*#    message_menu_options_url: $url#" \
   -e "s#^  socket_mode_enabled: true#  socket_mode_enabled: false#" \
   slack/manifest.yaml

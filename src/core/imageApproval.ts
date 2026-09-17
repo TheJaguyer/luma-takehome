@@ -14,6 +14,7 @@ import { getObjectBytes, keys, putObject } from "../lib/storage.js";
 import { startRound } from "./ideaApproval.js";
 import { aiProvenanceXmp } from "./provenance.js";
 import { recordEvent } from "./team.js";
+import { attemptsOnSource } from "./uploads.js";
 
 export const DONE_AT = 2; // #5a
 
@@ -194,11 +195,12 @@ export async function generateMore(db: Db, roundId: string, feedback: string, ac
   return db.$transaction(async (tx) => {
     const round = await tx.round.findUniqueOrThrow({ where: { id: roundId }, include: { product: true, idea: true } });
     const install = await tx.install.findUniqueOrThrow({ where: { teamId: round.teamId } });
-    const rounds = await tx.round.count({ where: { ideaId: round.ideaId } });
+    if (!round.product.currentSourcePhotoId) return { ok: false as const, reason: "no_photo" as const };
+    // Against the *current* source photo (Flow 6, Step 1): replacing the photo is a fresh start.
+    const rounds = await attemptsOnSource(tx, round.ideaId, round.product.currentSourcePhotoId);
     if (rounds >= install.maxRounds) return { ok: false as const, reason: "max_rounds" as const };
     const later = await tx.round.count({ where: { ideaId: round.ideaId, createdAt: { gt: round.createdAt } } });
     if (later > 0) return { ok: false as const, reason: "already_started" as const };
-    if (!round.product.currentSourcePhotoId) return { ok: false as const, reason: "no_photo" as const };
 
     // The round this one replaces is settled: nothing more is approved from it.
     await tx.round.updateMany({ where: { id: roundId, state: "AWAITING_DECISION" }, data: { state: "CLOSED" } });

@@ -9,6 +9,7 @@ import type { Logger } from "pino";
 import { approveCandidate, DONE_AT, generateMore, rejectRound, revokeImage, tryDifferentIdea } from "../core/imageApproval.js";
 import { productTitle, usd } from "../core/ideaCards.js";
 import { refreshProductMessage } from "../core/productMessage.js";
+import { refreshUploadMessage } from "../core/uploadMessage.js";
 import { activeApprovers, isApprover } from "../core/team.js";
 import type { Db } from "../lib/db.js";
 import { EDIT_PRICE_USD } from "../lib/luma.js";
@@ -204,10 +205,13 @@ async function doRevert(
   const candidate = result.image.candidateId
     ? await db.candidate.findUnique({ where: { id: result.image.candidateId }, include: { round: true } })
     : null;
+  // An uploaded photo (Flow 5) has no round: its own message is what re-renders.
+  const upload = result.image.uploadId ? await db.upload.findUnique({ where: { id: result.image.uploadId } }) : null;
 
   // State first: the product's message must match the database even if a cosmetic Slack call
   // below fails. Each of those is best-effort and logged on its own.
   if (candidate) await refreshProductMessage(db, client, candidate.roundId);
+  if (upload) await refreshUploadMessage(db, client, upload.id);
 
   await bestEffort(log, "strike the approval notice", () =>
     client.chat.update({
@@ -217,9 +221,10 @@ async function doRevert(
       blocks: [{ type: "context", elements: [{ type: "mrkdwn", text: `~This image went live~ · reverted by <@${actor.userId}>` }] }],
     }),
   );
-  if (candidate) {
+  const at = candidate?.round ?? upload;
+  if (at) {
     await bestEffort(log, "post the revert notice", () =>
-      postLiveChangeNotice(client, candidate.round, {
+      postLiveChangeNotice(client, at, {
         kind: "reverted",
         sku: result.image.product.sku,
         theme: result.image.theme?.name ?? null,
@@ -232,7 +237,7 @@ async function doRevert(
   }
 }
 
-async function bestEffort(log: Logger, what: string, call: () => Promise<unknown>) {
+export async function bestEffort(log: Logger, what: string, call: () => Promise<unknown>) {
   try {
     await call();
   } catch (err) {
@@ -240,7 +245,7 @@ async function bestEffort(log: Logger, what: string, call: () => Promise<unknown
   }
 }
 
-type Notice =
+export type Notice =
   | {
       kind: "approved";
       sku: string;
@@ -262,8 +267,8 @@ type Notice =
  * reverts not), so its history stays attached to the product. Names which theme's set
  * changed, because "images changed" alone is alarming and vague (Flow 7, Step 6).
  */
-async function postLiveChangeNotice(client: WebClient, round: { messageChannelId: string | null; messageTs: string | null }, n: Notice) {
-  if (!round.messageChannelId || !round.messageTs) return;
+export async function postLiveChangeNotice(client: WebClient, at: { messageChannelId: string | null; messageTs: string | null }, n: Notice) {
+  if (!at.messageChannelId || !at.messageTs) return;
   const set = n.theme ? `${n.theme} images` : "live images";
   const others = n.theme ? " · defaults unchanged" : "";
   const forced = n.forced && n.reason ? `\n⚠️ Without an approver: “${n.reason}”` : "";
@@ -296,8 +301,8 @@ async function postLiveChangeNotice(client: WebClient, round: { messageChannelId
   // Approvals are sent to the channel as well: going live is what someone should hear about.
   // Reverts stay in the thread — the product's message already shows the corrected state.
   await client.chat.postMessage({
-    channel: round.messageChannelId,
-    thread_ts: round.messageTs,
+    channel: at.messageChannelId,
+    thread_ts: at.messageTs,
     reply_broadcast: n.kind === "approved",
     text,
     blocks,

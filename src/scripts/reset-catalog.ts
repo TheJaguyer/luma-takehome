@@ -1,5 +1,5 @@
 // Clears everything an import creates so the flow can start again from a CSV drop:
-// products, source photos, drops, ideas, rounds, candidates, approved images, themes, the event
+// products, source photos, uploads, drops, ideas, rounds, candidates, approved images, themes, the event
 // log, and their files in storage. Setup survives — the review channel, approvers and house style.
 //
 // Run by deploy/local.sh --reset-catalog and deploy/push.sh --reset-catalog, with bot and worker
@@ -21,14 +21,14 @@ const db = createDb(config.DATABASE_URL);
 const s3 = createStorage(config);
 
 // Every prefix the app writes (src/lib/storage.ts `keys`). healthcheck/ belongs to storage-init.
-const PREFIXES = ["images/", "sources/", "candidates/", "sheets/"];
+const PREFIXES = ["images/", "sources/", "candidates/", "sheets/", "uploads/"];
 
 try {
   const before = await db.product.count();
   // One statement, so nothing is left half-cleared. installs and approvers are not listed, and
   // nothing they reference is, so CASCADE cannot reach them.
   await db.$executeRawUnsafe(
-    `TRUNCATE TABLE events, images, candidates, rounds, idea_options, ideas, drop_products, drops, source_photos, products, themes RESTART IDENTITY CASCADE`,
+    `TRUNCATE TABLE events, images, uploads, candidates, rounds, idea_options, ideas, drop_products, drops, source_photos, products, themes RESTART IDENTITY CASCADE`,
   );
 
   let deleted = 0;

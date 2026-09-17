@@ -5,6 +5,7 @@ import type { AllMiddlewareArgs, App, SlackCommandMiddlewareArgs } from "@slack/
 import type { Logger } from "pino";
 import { buildEventsCsv, buildProductsCsv } from "../core/exportCsv.js";
 import { loadStatus } from "../core/status.js";
+import { recordEvent } from "../core/team.js";
 import { roundsWithMissing } from "../core/roundRetry.js";
 import type { Db } from "../lib/db.js";
 import { houseStyleModal, startSetup } from "./setup.js";
@@ -23,6 +24,7 @@ const HELP = [
   "• `/shots retry` — retry every round that came back missing candidates",
   "• `/shots health` — check that everything I depend on is answering",
   "• `/shots ideas` — what's waiting for a decision, with links (and retry any failed drafts)",
+  "• `/shots priority HG-002` — put a product first in the queue (`off` to clear it)",
   "• `/shots status` — where everything stands · `/shots status q4-drop` — one drop · `/shots HG-002` — one product",
   "• `/shots daily` — post today's drop report and nudges now (they post at 9am on their own)",
 ].join("\n");
@@ -158,6 +160,27 @@ export function registerCommands({ app, db, log, s3, bucket, socketMode, publicB
           ],
         });
         return;
+      }
+
+      // #7: ⭐ orders the idea queue, the stuck list and drafting. Everything read it before this
+      // existed; nothing could set it, so "priority first" never triggered.
+      case "priority": {
+        const [sku, arg] = args;
+        if (!sku) return respond({ response_type: "ephemeral", text: "Which product? `/shots priority HG-002` — add `off` to clear it." });
+        const product = await db.product.findUnique({ where: { teamId_sku: { teamId: command.team_id, sku: sku.toUpperCase() } } });
+        if (!product) return respond({ response_type: "ephemeral", text: `I don't have ${sku.toUpperCase()}. \`/shots status\` lists what I do have.` });
+        const on = arg?.toLowerCase() === "off" ? false : arg?.toLowerCase() === "on" ? true : !product.priority;
+        if (on === product.priority) {
+          return respond({ response_type: "ephemeral", text: `${product.sku} is already ${on ? "⭐ priority" : "not priority"}.` });
+        }
+        await db.product.update({ where: { id: product.id }, data: { priority: on } });
+        await recordEvent(db, { teamId: command.team_id, actor: command.user_id, type: on ? "product.prioritised" : "product.deprioritised", productId: product.id });
+        return respond({
+          response_type: "ephemeral",
+          text: on
+            ? `⭐  *${product.sku}* is priority — it sorts first in the idea queue, in drafting and in the stuck list.`
+            : `${product.sku} is no longer priority.`,
+        });
       }
 
       case "health": {

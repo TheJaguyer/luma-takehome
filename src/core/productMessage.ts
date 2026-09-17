@@ -7,6 +7,7 @@ import type { Db } from "../lib/db.js";
 import { EDIT_PRICE_USD } from "../lib/luma.js";
 import { DONE_AT, liveInSet } from "./imageApproval.js";
 import { productTitle, usd } from "./ideaCards.js";
+import { attemptsOnSource } from "./uploads.js";
 
 export type RoundView = {
   round: { id: string; number: number; state: "GENERATING" | "AWAITING_DECISION" | "CLOSED"; model: string; feedback: string | null; sheetFileId: string | null };
@@ -16,6 +17,10 @@ export type RoundView = {
   idea: { headline: string; decidedBy: string | null; forced: boolean; forceReason: string | null; state: string };
   candidates: { id: string; position: number; state: string; error: string | null; costUsd: number; approvedBy: string | null }[];
   live: number; // live images in this round's campaign set
+  // Which attempt this is *against the current source photo* (Flow 6, Step 1): a new photo
+  // resets the count, because regenerating the same thing is what maxRounds exists to stop.
+  // Defaults to the round number, which is the same thing until a photo is replaced.
+  attempt?: number;
 };
 
 export function roundMessageBlocks(v: RoundView): KnownBlock[] {
@@ -23,7 +28,8 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
   const images = (n: number) => `${n} approved ${v.theme ? `${v.theme} ` : ""}image${n === 1 ? "" : "s"}`;
   const cost = v.candidates.reduce((s, c) => s + c.costUsd, 0);
   const estimate = v.candidates.length * (EDIT_PRICE_USD[v.round.model] ?? 0);
-  const roundLine = `round ${v.round.number} of ${v.maxRounds}`;
+  const attempt = v.attempt ?? v.round.number;
+  const roundLine = `round ${attempt} of ${v.maxRounds}`;
   const ideaLine =
     `Idea: “${v.idea.headline}”${v.idea.decidedBy ? ` — approved by <@${v.idea.decidedBy}>` : ""}` +
     (v.idea.forced && v.idea.forceReason ? ` ⚠️ forced: “${v.idea.forceReason}”` : "") +
@@ -50,7 +56,7 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
 
   // Short, and nothing queued: the system's quietest failure state (#5a) — so it says so plainly.
   if (v.round.state === "CLOSED") {
-    const canMore = v.round.number < v.maxRounds;
+    const canMore = attempt < v.maxRounds;
     const need = DONE_AT - v.live;
     return [
       section(
@@ -66,7 +72,7 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
       },
       ...(canMore
         ? []
-        : [{ type: "context" as const, elements: [{ type: "mrkdwn" as const, text: `That was round ${v.maxRounds} of ${v.maxRounds}. Going further is a settings change, not a button (#13). ${need} more needed.` }] }]),
+        : [{ type: "context" as const, elements: [{ type: "mrkdwn" as const, text: `That was round ${attempt} of ${v.maxRounds}. Going further is a settings change, not a button (#13). ${need} more needed.` }] }]),
     ];
   }
 
@@ -133,6 +139,7 @@ export async function loadRoundView(db: Db, roundId: string): Promise<RoundView 
       approvedBy: c.image && !c.image.revokedAt ? c.image.approvedBy : null,
     })),
     live: await liveInSet(db, round.productId, idea.themeId),
+    attempt: await attemptsOnSource(db, idea.id, round.sourcePhotoId, round.number),
   };
 }
 

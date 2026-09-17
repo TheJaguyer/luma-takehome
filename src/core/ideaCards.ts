@@ -33,7 +33,9 @@ export function ideaCardBlocks(idea: CardIdea): KnownBlock[] {
     idea.rawSheetIdea ? `*Sheet idea:* “${idea.rawSheetIdea}”` : null,
     p.notes ? `*Note:* “${p.notes}”` : null,
     idea.themeName ? `*Campaign:* ${idea.themeName}` : null,
-    p.hasSourcePhoto ? null : "⚠️ *Needs a source photo* — approving records the idea, but nothing generates until a photo is added.",
+    p.hasSourcePhoto
+      ? null
+      : "⚠️ *Needs a source photo* — approving records the idea, but nothing generates until one arrives. Drop a photo in this channel and pick *A new product photo*.",
   ].filter(Boolean) as string[];
 
   const blocks: KnownBlock[] = [

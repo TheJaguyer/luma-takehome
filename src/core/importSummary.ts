@@ -60,7 +60,8 @@ export function importSummaryBlocks({ drop, report, themeName, themes }: Summary
   if (report.needsPhoto.length) {
     lines.push(
       `🖼  ${plural(report.needsPhoto.length, "product needs", "products need")} a source photo before it can generate: ` +
-        listSkus(report.needsPhoto),
+        listSkus(report.needsPhoto) +
+        "\n_Drop a photo in this channel and pick *A new product photo* — I'll ask which product._",
     );
   }
   if (lines.length === 0) lines.push("Nothing new in this file.");

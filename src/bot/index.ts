@@ -12,6 +12,7 @@ import { registerImports } from "./imports.js";
 import { registerSetup } from "./setup.js";
 import { registerStatus } from "./status.js";
 import { registerThemes } from "./themes.js";
+import { registerUploads } from "./uploads.js";
 
 const config = loadConfig({
   SLACK_BOT_TOKEN: z.string().startsWith("xoxb-"),
@@ -38,6 +39,7 @@ registerIdeas({ app, db, log });
 registerStatus({ app, db });
 registerThemes({ app, db });
 registerCandidates({ app, db, log, s3, bucket: config.S3_BUCKET, publicBaseUrl: config.PUBLIC_BASE_URL });
+registerUploads({ app, db, log, s3, bucket: config.S3_BUCKET, publicBaseUrl: config.PUBLIC_BASE_URL, botToken: config.SLACK_BOT_TOKEN });
 registerCommands({ app, db, log, s3, bucket: config.S3_BUCKET, socketMode, publicBaseUrl: config.PUBLIC_BASE_URL });
 
 app.action("round_retry_missing", async ({ ack, body, client, respond }) => {
