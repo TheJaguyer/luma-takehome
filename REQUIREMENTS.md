@@ -516,7 +516,12 @@ per-target inputs are a `.env` and a DNS name for Caddy to get a certificate for
 - **Hetzner** — a personally managed server with Docker installed.
 - **AWS** — a single EC2 or Lightsail VM in `us-west-2` running the same Compose file. Not ECS:
   that is the ideal stack, and on the day it would make "deploy" mean something different on each
-  target.
+  target. **Deployed on EC2** (2026-09-16): `t3.medium`, Ubuntu 24.04, 30 GiB gp3, Elastic IP,
+  security group open on 80/443 and SSH from one IP — about $36/month, or ~$6 stopped. Lightsail
+  was the first choice (flat price, simpler console) but was not available on the account.
+  First boot is [deploy/ec2/user-data.sh](deploy/ec2/user-data.sh); deploys are
+  [deploy/push.sh](deploy/push.sh) (rsync, then `compose up --build` on the box), with a separate
+  prod Slack app in HTTP mode from [deploy/slack-manifest.sh](deploy/slack-manifest.sh).
 - **Local** — the same Compose file on a laptop, with no public URL. **Slack reaches the `bot` over
   Socket Mode locally and over HTTP (through Caddy) when deployed.** Bolt picks the receiver from
   configuration — `SLACK_APP_TOKEN` present means Socket Mode — so this is a setting, not a second
