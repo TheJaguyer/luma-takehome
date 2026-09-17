@@ -7,7 +7,7 @@
 
 - **The Part 5 build is complete** — the spine plus both deliberate additions — committed through
   `8db348a`. Every step was tested by hand in Slack, locally and on EC2.
-- **27 → 28 unit tests** (`pnpm test`), all passing; `pnpm typecheck` clean.
+- **28 unit tests** (`pnpm test`), all passing; `pnpm typecheck` clean.
 - **Deploy:** `deploy/local.sh [--reset-catalog]` locally; `deploy/push.sh ubuntu@<ip> [--reset-catalog]`
   to EC2 (types the host before a reset). Two Slack apps: dev (Socket Mode) and prod (HTTP).
 - **Cheap test data:** `data/samples/short.csv` (5 products: 2 with sheet ideas, 3 without — about
