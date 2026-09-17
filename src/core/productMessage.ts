@@ -7,6 +7,7 @@ import type { Db } from "../lib/db.js";
 import { EDIT_PRICE_USD } from "../lib/luma.js";
 import { DONE_AT, liveInSet } from "./imageApproval.js";
 import { productTitle, usd } from "./ideaCards.js";
+import { deciderLabel } from "./people.js";
 import { attemptsOnSource } from "./uploads.js";
 
 export type RoundView = {
@@ -14,6 +15,8 @@ export type RoundView = {
   maxRounds: number;
   product: { sku: string; name: string | null; color: string | null };
   theme: string | null; // the campaign this round is for; null = everyday
+  // A name only when it is worth saying (src/core/people.ts): never a mention, because this
+  // message is edited at every stage and a mention pings on every edit.
   idea: { headline: string; decidedBy: string | null; forced: boolean; forceReason: string | null; state: string };
   candidates: { id: string; position: number; state: string; error: string | null; costUsd: number; approvedBy: string | null }[];
   live: number; // live images in this round's campaign set
@@ -31,7 +34,7 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
   const attempt = v.attempt ?? v.round.number;
   const roundLine = `round ${attempt} of ${v.maxRounds}`;
   const ideaLine =
-    `Idea: “${v.idea.headline}”${v.idea.decidedBy ? ` — approved by <@${v.idea.decidedBy}>` : ""}` +
+    `Idea: “${v.idea.headline}”${v.idea.decidedBy ? ` — approved by ${v.idea.decidedBy}` : ""}` +
     (v.idea.forced && v.idea.forceReason ? ` ⚠️ forced: “${v.idea.forceReason}”` : "") +
     (v.round.feedback ? `\nThis round: “${v.round.feedback}”` : "");
   const section = (text: string): KnownBlock => ({ type: "section", text: { type: "mrkdwn", text } });
@@ -39,7 +42,7 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
     ({ type: "button" as const, action_id, text: { type: "plain_text" as const, text }, value, ...(style ? { style } : {}) });
 
   if (v.round.state === "GENERATING") {
-    return [section(`🎨  *${title}*\n${roundLine} — generating ${v.candidates.length} candidates · ${usd(estimate)}\n${ideaLine}`)];
+    return [section(`🔄  *${title}*\n${roundLine} — generating ${v.candidates.length} candidates · ${usd(estimate)}\n${ideaLine}`)];
   }
 
   const succeeded = v.candidates.filter((c) => c.state === "SUCCEEDED");
@@ -48,9 +51,13 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
 
   // Done: the message collapses to its approved line. Every candidate stays reachable from it.
   if (done) {
-    const actions = succeeded.length ? [button("candidate_open_1", `See all ${v.candidates.length}`, succeeded[0]!.id)] : [];
+    // Done is not the end of the road: another idea for the same product is one tap, and it is
+    // the only thing anyone wants from here — the candidates are already in the thread.
     return [
-      { ...section(`✅  *${title}* · done — ${images(v.live)}, live now\n“${v.idea.headline}” · ${roundLine}`), ...(actions.length ? { accessory: actions[0] } : {}) } as KnownBlock,
+      {
+        ...section(`✅  *${title}* · done — ${images(v.live)}, live now\n“${v.idea.headline}” · ${roundLine}`),
+        accessory: button("round_new_idea", "Generate another", v.round.id),
+      } as KnownBlock,
     ];
   }
 
@@ -104,7 +111,7 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
   ];
 }
 
-export async function loadRoundView(db: Db, roundId: string): Promise<RoundView & { channel: string | null; ts: string | null; ideaId: string }> {
+export async function loadRoundView(db: Db, web: WebClient, roundId: string): Promise<RoundView & { channel: string | null; ts: string | null; ideaId: string }> {
   const round = await db.round.findUniqueOrThrow({
     where: { id: roundId },
     include: {
@@ -125,7 +132,7 @@ export async function loadRoundView(db: Db, roundId: string): Promise<RoundView 
     theme: idea.theme?.name ?? null,
     idea: {
       headline: idea.approvedOption ? `${idea.approvedOption.headline}${idea.edited ? " (edited)" : ""}` : idea.approvedPrompt ? "Written in Slack" : "—",
-      decidedBy: idea.decidedBy,
+      decidedBy: await deciderLabel(db, web, round.teamId, idea.decidedBy),
       forced: idea.forced,
       forceReason: idea.forceReason,
       state: idea.state,
@@ -147,7 +154,7 @@ export async function loadRoundView(db: Db, roundId: string): Promise<RoundView 
 export async function refreshProductMessage(db: Db, web: WebClient, roundId: string) {
   const anyRound = await db.round.findUniqueOrThrow({ where: { id: roundId }, select: { ideaId: true } });
   const latest = await db.round.findFirstOrThrow({ where: { ideaId: anyRound.ideaId }, orderBy: { number: "desc" } });
-  const view = await loadRoundView(db, latest.id);
+  const view = await loadRoundView(db, web, latest.id);
   if (!view.channel || !view.ts) return;
   // A superseded idea's message belongs to the replacement idea's card now.
   if (view.idea.state === "SUPERSEDED") return;

@@ -12,6 +12,7 @@ import type { WebClient } from "@slack/web-api";
 import type { Logger } from "pino";
 import sharp from "sharp";
 import { productTitle, usd } from "../core/ideaCards.js";
+import { deciderLabel, displayName } from "../core/people.js";
 import { fetchSlackFile, PhotoFetchError, storeSourcePhotoBytes } from "../core/sourcePhotos.js";
 import { isApprover, recordEvent } from "../core/team.js";
 import { approveUpload, declineUpload, replaceSourcePhoto } from "../core/uploads.js";
@@ -169,7 +170,7 @@ export function registerUploads({ app, db, log, s3, bucket, publicBaseUrl, botTo
   app.action("upload_open", async ({ ack, body, client }) => {
     await ack();
     const { value, triggerId, teamId, userId } = actionContext(body);
-    const view = await uploadModal(db, value, !(await isApprover(db, teamId, userId)));
+    const view = await uploadModal(db, client, value, !(await isApprover(db, teamId, userId)));
     if (view) await client.views.open({ trigger_id: triggerId, view });
   });
 
@@ -190,6 +191,7 @@ export function registerUploads({ app, db, log, s3, bucket, publicBaseUrl, botTo
       return;
     }
     await refreshUploadMessage(db, client, uploadId);
+    const by = await deciderLabel(db, client, body.team!.id, body.user.id);
     await bestEffort(log, "post the approval notice", () =>
       postLiveChangeNotice(client, upload, {
         kind: "approved",
@@ -199,7 +201,7 @@ export function registerUploads({ app, db, log, s3, bucket, publicBaseUrl, botTo
         isPrimary: result.isPrimary,
         live: result.live,
         themeLive: result.themeLive,
-        userId: body.user.id,
+        by,
         forced: !approver,
         reason: approver ? null : reason,
         imageId: result.image.id,
@@ -355,7 +357,8 @@ async function createUploadCandidate(
     theme: a.themeId ? (await db.theme.findUnique({ where: { id: a.themeId } }))?.name ?? null : null,
     slackFileId,
     aiGenerated: a.aiGenerated,
-    uploadedBy: a.userId,
+    uploadedBy: await displayName(client, a.userId),
+    approved: false,
     approvedBy: null,
     declinedBy: null,
     live: await db.image.count({ where: { productId: a.product.id, themeId: a.themeId, revokedAt: null } }),
@@ -478,7 +481,7 @@ async function proposeSourceReplacement(
   log.info({ sku: product.sku, version: photo.version, ts: posted.ts }, "source photo replacement proposed");
 }
 
-async function uploadModal(db: Db, uploadId: string, needsReason: boolean): Promise<View | null> {
+async function uploadModal(db: Db, web: WebClient, uploadId: string, needsReason: boolean): Promise<View | null> {
   const upload = await db.upload.findUnique({
     where: { id: uploadId },
     include: { product: { include: { currentSourcePhoto: true } }, image: true },
@@ -486,12 +489,16 @@ async function uploadModal(db: Db, uploadId: string, needsReason: boolean): Prom
   if (!upload?.slackFileId) return null;
   const approved = upload.image && !upload.image.revokedAt ? upload.image : null;
   const open = !approved && !upload.declinedAt;
+  const [approvedBy, uploadedBy] = await Promise.all([
+    deciderLabel(db, web, upload.teamId, approved?.approvedBy ?? null),
+    displayName(web, upload.uploadedBy),
+  ]);
 
   const blocks: KnownBlock[] = [{ type: "image", slack_file: { id: upload.slackFileId }, alt_text: `${upload.product.sku} uploaded photo` }];
   // The same fidelity check as a generated candidate (decision 3.1): does this show the product?
   if (upload.product.currentSourcePhoto?.originalUrl) {
     blocks.push(
-      { type: "context", elements: [{ type: "mrkdwn", text: "↓ *The product as it must look* — same shape, colour, finish and proportions (#14)" }] },
+      { type: "context", elements: [{ type: "mrkdwn", text: "Check product accuracy with the source below" }] },
       { type: "image", image_url: upload.product.currentSourcePhoto.originalUrl, alt_text: `${upload.product.sku} product photo` },
     );
   }
@@ -501,8 +508,8 @@ async function uploadModal(db: Db, uploadId: string, needsReason: boolean): Prom
       {
         type: "mrkdwn",
         text: approved
-          ? `✅ Approved by <@${approved.approvedBy}>`
-          : `Uploaded by <@${upload.uploadedBy}>${upload.aiGenerated ? " · ⚠️ declared AI-made" : " · not AI"}. Approving puts it on the product page.`,
+          ? `✅ Approved${approvedBy ? ` by ${approvedBy}` : ""}`
+          : `Uploaded by ${uploadedBy}${upload.aiGenerated ? " · ⚠️ declared AI-made" : " · not AI"}. Approving puts it on the product page.`,
       },
     ],
   });

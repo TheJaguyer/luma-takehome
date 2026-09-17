@@ -1,7 +1,7 @@
 import type { Db } from "../lib/db.js";
 import type { CardIdea } from "./ideaCards.js";
 
-export async function loadCardIdea(db: Db, ideaId: string): Promise<(CardIdea & { cardChannelId: string | null; cardTs: string | null }) | null> {
+export async function loadCardIdea(db: Db, ideaId: string): Promise<(CardIdea & { teamId: string; cardChannelId: string | null; cardTs: string | null }) | null> {
   const idea = await db.idea.findUnique({
     where: { id: ideaId },
     include: { options: { orderBy: { position: "asc" } }, product: true, theme: true },
@@ -9,6 +9,7 @@ export async function loadCardIdea(db: Db, ideaId: string): Promise<(CardIdea & 
   if (!idea) return null;
   return {
     id: idea.id,
+    teamId: idea.teamId,
     rawSheetIdea: idea.rawSheetIdea,
     themeName: idea.theme?.name ?? null,
     options: idea.options,
@@ -18,7 +19,6 @@ export async function loadCardIdea(db: Db, ideaId: string): Promise<(CardIdea & 
       sku: idea.product.sku,
       name: idea.product.name,
       color: idea.product.color,
-      price: idea.product.price,
       notes: idea.product.notes,
       priority: idea.product.priority,
       photoUrl: idea.product.photoUrl,

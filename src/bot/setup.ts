@@ -224,7 +224,7 @@ async function completeSetup(
       section(
         `🔌  *For whoever wires up the site:*\n\`GET ${base}/products/{SKU}/images\`\n\n` +
           `Returns approved images in display order, primary first, each with an immutable URL and its origin ` +
-          `(ai / photographer). Add \`?theme=holiday\` for a campaign's images first. Approving an image changes ` +
+          `(ai / photographer). Add \`?theme=holiday\` for a theme's images first. Approving an image changes ` +
           `what this returns — no upload step, no dev work per product. If it's ever unreachable, show the ` +
           `product's own photo.`,
       ),

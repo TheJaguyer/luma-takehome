@@ -8,6 +8,7 @@ import type { WebClient } from "@slack/web-api";
 import type { Logger } from "pino";
 import { approveCandidate, DONE_AT, generateMore, rejectRound, revokeImage, tryDifferentIdea } from "../core/imageApproval.js";
 import { productTitle, usd } from "../core/ideaCards.js";
+import { deciderLabel } from "../core/people.js";
 import { refreshProductMessage } from "../core/productMessage.js";
 import { refreshUploadMessage } from "../core/uploadMessage.js";
 import { activeApprovers, isApprover } from "../core/team.js";
@@ -47,15 +48,6 @@ export function registerCandidates({ app, db, log, s3, bucket, publicBaseUrl }: 
     if (ready && opened.view?.id) await withFreshFile(() => client.views.update({ view_id: opened.view!.id!, view: ready }));
   });
 
-  // [◂] / [▸] inside the modal: walk the round without going back to the sheet.
-  app.action("candidate_nav", async ({ ack, body, client }) => {
-    await ack();
-    const b = body as { view?: { id: string; hash: string }; actions: { value: string }[]; user: { id: string }; team?: { id: string } };
-    if (!b.view) return;
-    const view = await candidateModal(db, b.actions[0]!.value, !(await isApprover(db, b.team!.id, b.user.id)));
-    if (view) await client.views.update({ view_id: b.view.id, hash: b.view.hash, view });
-  });
-
   app.view("candidate_modal", async ({ ack, body, view, client }) => {
     const { candidateId } = JSON.parse(view.private_metadata) as { candidateId: string };
     const approver = await isApprover(db, body.team!.id, body.user.id);
@@ -76,6 +68,7 @@ export function registerCandidates({ app, db, log, s3, bucket, publicBaseUrl }: 
       return;
     }
     await refreshProductMessage(db, client, candidate.roundId);
+    const by = await deciderLabel(db, client, body.team!.id, body.user.id);
     await bestEffort(log, "post the approval notice", () => postLiveChangeNotice(client, candidate.round, {
       kind: "approved",
       sku: result.product.sku,
@@ -84,7 +77,7 @@ export function registerCandidates({ app, db, log, s3, bucket, publicBaseUrl }: 
       isPrimary: result.isPrimary,
       live: result.live,
       themeLive: result.themeLive,
-      userId: body.user.id,
+      by,
       forced: !approver,
       reason: approver ? null : reason,
       imageId: result.image.id,
@@ -213,12 +206,13 @@ async function doRevert(
   if (candidate) await refreshProductMessage(db, client, candidate.roundId);
   if (upload) await refreshUploadMessage(db, client, upload.id);
 
+  const by = await deciderLabel(db, client, result.image.teamId, actor.userId);
   await bestEffort(log, "strike the approval notice", () =>
     client.chat.update({
       channel: notice.channelId,
       ts: notice.messageTs,
       text: "Reverted",
-      blocks: [{ type: "context", elements: [{ type: "mrkdwn", text: `~This image went live~ · reverted by <@${actor.userId}>` }] }],
+      blocks: [{ type: "context", elements: [{ type: "mrkdwn", text: `~This image went live~ · reverted${by ? ` by ${by}` : ""}` }] }],
     }),
   );
   const at = candidate?.round ?? upload;
@@ -229,7 +223,7 @@ async function doRevert(
         sku: result.image.product.sku,
         theme: result.image.theme?.name ?? null,
         live: result.live,
-        userId: actor.userId,
+        by,
         forced: actor.forced,
         reason: actor.reason,
       }),
@@ -254,13 +248,13 @@ export type Notice =
       isPrimary: boolean;
       live: number;
       themeLive: number;
-      userId: string;
+      by: string | null; // a name only when it is not the approver (src/core/people.ts)
       forced: boolean;
       reason: string | null;
       imageId: string;
       url: string;
     }
-  | { kind: "reverted"; sku: string; theme: string | null; live: number; userId: string; forced: boolean; reason: string | null };
+  | { kind: "reverted"; sku: string; theme: string | null; live: number; by: string | null; forced: boolean; reason: string | null };
 
 /**
  * #4's live-change notice, in the product message's thread (approvals also sent to the channel,
@@ -271,7 +265,9 @@ export async function postLiveChangeNotice(client: WebClient, at: { messageChann
   if (!at.messageChannelId || !at.messageTs) return;
   const set = n.theme ? `${n.theme} images` : "live images";
   const others = n.theme ? " · defaults unchanged" : "";
-  const forced = n.forced && n.reason ? `\n⚠️ Without an approver: “${n.reason}”` : "";
+  // Forced always names who: that is the whole point of the record (#1).
+  const forced = n.forced && n.reason ? `\n⚠️ ${n.by ?? "Someone"} decided without an approver: “${n.reason}”` : "";
+  const by = n.forced ? "" : n.by ? ` by ${n.by}` : "";
   let text: string;
   let blocks: KnownBlock[];
   if (n.kind === "approved") {
@@ -284,7 +280,7 @@ export async function postLiveChangeNotice(client: WebClient, at: { messageChann
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `${done}🔄  *${n.sku}'s ${set} changed* — ${change}\nApproved by <@${n.userId}> · ${n.themeLive} ${n.theme ? `${n.theme} ` : ""}image${n.themeLive === 1 ? "" : "s"} live${others} · <${n.url}|view file>${forced}`,
+          text: `${done}🔄  *${n.sku}'s ${set} changed* — ${change}\nApproved${by} · ${n.themeLive} ${n.theme ? `${n.theme} ` : ""}image${n.themeLive === 1 ? "" : "s"} live${others} · <${n.url}|view file>${forced}`,
         },
         accessory: { type: "button", action_id: "image_revert", text: { type: "plain_text", text: "Revert" }, value: n.imageId },
       },
@@ -294,16 +290,15 @@ export async function postLiveChangeNotice(client: WebClient, at: { messageChann
     blocks = [
       {
         type: "section",
-        text: { type: "mrkdwn", text: `↩️  *${n.sku}'s ${set} changed* — an image was reverted by <@${n.userId}>. ${n.live} ${n.theme ? `${n.theme} ` : ""}image${n.live === 1 ? "" : "s"} live now.${forced}` },
+        text: { type: "mrkdwn", text: `↩️  *${n.sku}'s ${set} changed* — an image was reverted${by}. ${n.live} ${n.theme ? `${n.theme} ` : ""}image${n.live === 1 ? "" : "s"} live now.${forced}` },
       },
     ];
   }
-  // Approvals are sent to the channel as well: going live is what someone should hear about.
-  // Reverts stay in the thread — the product's message already shows the corrected state.
+  // Thread only, both ways. The product's own message already shows the live state in the
+  // channel, so broadcasting the notice said the same thing twice to everyone.
   await client.chat.postMessage({
     channel: at.messageChannelId,
     thread_ts: at.messageTs,
-    reply_broadcast: n.kind === "approved",
     text,
     blocks,
     unfurl_links: false,
@@ -318,9 +313,6 @@ async function candidateModal(db: Db, candidateId: string, needsReason: boolean)
   if (!candidate?.slackFileId) return null;
   const { round } = candidate;
   const siblings = round.candidates;
-  const index = siblings.findIndex((c) => c.id === candidate.id);
-  const prev = siblings[index - 1];
-  const next = siblings[index + 1];
   const approved = candidate.image && !candidate.image.revokedAt ? candidate.image : null;
   const open = round.state === "AWAITING_DECISION" && !approved;
 
@@ -329,7 +321,7 @@ async function candidateModal(db: Db, candidateId: string, needsReason: boolean)
   ];
   if (round.sourcePhoto.originalUrl) {
     blocks.push(
-      { type: "context", elements: [{ type: "mrkdwn", text: "↓ *The product as it must look* — same shape, colour, finish and proportions (#14)" }] },
+      { type: "context", elements: [{ type: "mrkdwn", text: "Check product accuracy with the source below" }] },
       { type: "image", image_url: round.sourcePhoto.originalUrl, alt_text: `${round.product.sku} product photo` },
     );
   }
@@ -346,10 +338,6 @@ async function candidateModal(db: Db, candidateId: string, needsReason: boolean)
       },
     ],
   });
-  const navButton = (c: { id: string }, text: string) =>
-    ({ type: "button" as const, action_id: "candidate_nav", text: { type: "plain_text" as const, text }, value: c.id });
-  const nav = [...(prev ? [navButton(prev, `◂ ${prev.position}`)] : []), ...(next ? [navButton(next, `${next.position} ▸`)] : [])];
-  if (nav.length) blocks.push({ type: "actions", block_id: "nav", elements: nav });
   if (open && needsReason) {
     blocks.push(
       { type: "context", elements: [{ type: "mrkdwn", text: "⚠️ You're not the approver, so this is a force-approve. It goes live immediately, and the record will show you approved it without an approver." }] },

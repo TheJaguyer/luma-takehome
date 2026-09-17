@@ -14,7 +14,6 @@ export type CardIdea = {
     sku: string;
     name: string | null;
     color: string | null;
-    price: string | null;
     notes: string | null;
     priority: boolean;
     photoUrl: string | null;
@@ -22,8 +21,17 @@ export type CardIdea = {
   };
 };
 
-export function productTitle(p: { sku: string; name: string | null; color: string | null; price?: string | null }) {
-  return [p.sku, p.name, p.color, p.price].filter(Boolean).join(" · ");
+/** The SKU, what it is and what colour — price is in the export, and nobody picks a photo by it. */
+export function productTitle(p: { sku: string; name: string | null; color: string | null }) {
+  return [p.sku, p.name, p.color].filter(Boolean).join(" · ");
+}
+
+/**
+ * Option 1 in expand mode is the sheet idea itself, rewritten in full (src/core/drafting.ts);
+ * 2 and 3 are our takes on it. Labelling it says which one the team already asked for.
+ */
+export function fromImport(idea: { rawSheetIdea: string | null }, position: number) {
+  return position === 1 && idea.rawSheetIdea?.trim() ? "  _(from import)_" : "";
 }
 
 export function ideaCardBlocks(idea: CardIdea): KnownBlock[] {
@@ -32,7 +40,7 @@ export function ideaCardBlocks(idea: CardIdea): KnownBlock[] {
   const context = [
     idea.rawSheetIdea ? `*Sheet idea:* “${idea.rawSheetIdea}”` : null,
     p.notes ? `*Note:* “${p.notes}”` : null,
-    idea.themeName ? `*Campaign:* ${idea.themeName}` : null,
+    idea.themeName ? `*Theme:* ${idea.themeName}` : null,
     p.hasSourcePhoto
       ? null
       : "⚠️ *Needs a source photo* — approving records the idea, but nothing generates until one arrives. Drop a photo in this channel and pick *A new product photo*.",
@@ -52,7 +60,7 @@ export function ideaCardBlocks(idea: CardIdea): KnownBlock[] {
   blocks.push(
     {
       type: "section",
-      text: { type: "mrkdwn", text: idea.options.map((o) => `${NUMBERS[o.position - 1]}  ${o.headline}`).join("\n") },
+      text: { type: "mrkdwn", text: idea.options.map((o) => `${NUMBERS[o.position - 1]}  ${o.headline}${fromImport(idea, o.position)}`).join("\n") },
     },
     {
       type: "actions",
@@ -85,7 +93,7 @@ export function decidedCardBlocks(d: {
   sku: string;
   state: "APPROVED" | "SKIPPED";
   headline?: string;
-  userId: string;
+  by: string | null; // a name only when it is not the approver (src/core/people.ts)
   forced: boolean;
   reason: string | null;
   generation?: { started: boolean; candidates: number; estimateUsd: number };
@@ -94,17 +102,18 @@ export function decidedCardBlocks(d: {
     return [
       {
         type: "section",
-        text: { type: "mrkdwn", text: `⏭  ${d.sku} · skipped by <@${d.userId}>` },
+        text: { type: "mrkdwn", text: `⏭  ${d.sku} · skipped${d.by ? ` by ${d.by}` : ""}` },
         accessory: { type: "button", action_id: "idea_unskip", text: { type: "plain_text", text: "Review again" }, value: d.ideaId },
       },
     ];
   }
-  const forced = d.forced ? `  ·  ⚠️ force-approved: “${d.reason}”` : "";
+  const forced = d.forced ? `  ·  ⚠️ ${d.by ?? "someone"} force-approved: “${d.reason}”` : "";
+  const by = d.forced ? "" : d.by ? ` · ${d.by}` : "";
   const gen = d.generation?.started
     ? `🎨 generating ${d.generation.candidates} candidates · ${usd(d.generation.estimateUsd)} — they'll appear right here`
     : "not generating — needs a source photo first";
   return [
-    { type: "section", text: { type: "mrkdwn", text: `✅  ${d.sku} · “${d.headline}” · <@${d.userId}>${forced}\n${gen}` } },
+    { type: "section", text: { type: "mrkdwn", text: `✅  ${d.sku} · “${d.headline}”${by}${forced}\n${gen}` } },
   ];
 }
 

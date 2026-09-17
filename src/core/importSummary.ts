@@ -94,7 +94,7 @@ export function importSummaryBlocks({ drop, report, themeName, themes }: Summary
       : `Nothing to draft — every product here already has ${themeName ? `${themeName} ideas` : "everyday ideas"}.`;
     blocks.push({
       type: "context",
-      elements: [{ type: "mrkdwn", text: `🎨 Campaign: ${theme} — chosen by <@${drop.themeAnsweredBy}>. ${outcome}` }],
+      elements: [{ type: "mrkdwn", text: `🎨 Theme: ${theme}. ${outcome}` }],
     });
     return blocks;
   }
@@ -108,9 +108,9 @@ export function importSummaryBlocks({ drop, report, themeName, themes }: Summary
       text: {
         type: "mrkdwn",
         text:
-          `One question before I draft ideas — *is this batch for a campaign?* ` +
-          `Products that already have ideas for the campaign you pick are skipped, so choosing one here ` +
-          `starts that campaign for everything in the file. Drafting starts either way (up to about ` +
+          `One question before I draft ideas — *is this batch for a theme?* ` +
+          `Products that already have ideas for the theme you pick are skipped, so choosing one here ` +
+          `starts that theme for everything in the file. Drafting starts either way (up to about ` +
           `$${draftingCost(report.toDraft).toFixed(2)}). No image is generated until you approve an idea.${styleNote}`,
       },
     },

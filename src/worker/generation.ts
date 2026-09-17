@@ -308,7 +308,7 @@ export async function postReadyRounds(deps: Deps) {
       await db.candidate.update({ where: { id: c.id }, data: { slackFileId } });
     }
 
-    const view = await loadRoundView(db, round.id);
+    const view = await loadRoundView(db, web, round.id);
     const text = `${sku}: ${round.candidates.filter((c) => c.state === "SUCCEEDED").length} candidates ready for review`;
     const blocks = roundMessageBlocks(view);
     let channel: string;

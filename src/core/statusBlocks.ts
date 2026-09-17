@@ -86,7 +86,7 @@ export function dropBlocks(status: Status, dropId: string, opts: { title?: strin
     "",
     ...stageLines(progress).filter((l) => !l.startsWith("✅")),
     awaiting.length ? `⭐  Priority waiting on a decision: ${awaiting.join(", ")}` : null,
-    drop.waiting ? `⚠️  The campaign question hasn't been answered, so no ideas are drafted yet` : null,
+    drop.waiting ? `⚠️  The theme question hasn't been answered, so no ideas are drafted yet` : null,
     "",
     stuck.length ? `⚠️  ${stuck.length} stuck` : "✅  Nothing is stuck",
     `💰  ${usd(spend)} spent on these products`,

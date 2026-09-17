@@ -6,7 +6,8 @@ import type { KnownBlock, View } from "@slack/types";
 import type { WebClient } from "@slack/web-api";
 import type { Logger } from "pino";
 import { decideIdea, type Decision } from "../core/ideaApproval.js";
-import { decidedCardBlocks, ideaCardBlocks } from "../core/ideaCards.js";
+import { decidedCardBlocks, fromImport, ideaCardBlocks } from "../core/ideaCards.js";
+import { deciderLabel } from "../core/people.js";
 import { loadCardIdea } from "../core/ideaQueries.js";
 import { activeApprovers, isApprover, recordEvent } from "../core/team.js";
 import type { Db } from "../lib/db.js";
@@ -36,7 +37,7 @@ export function registerIdeas({ app, db, log }: Deps) {
     const { value, channelId, messageTs } = actionContext(body);
     const idea = await loadCardIdea(db, value);
     if (!idea) return;
-    const text = idea.options.map((o) => `*${o.position}. ${o.headline}*\n${o.prompt}`).join("\n\n");
+    const text = idea.options.map((o) => `*${o.position}. ${o.headline}*${fromImport(idea, o.position)}\n${o.prompt}`).join("\n\n");
     await client.chat.postMessage({ channel: channelId, thread_ts: messageTs, text });
   });
 
@@ -126,15 +127,16 @@ async function applyDecision(
     return;
   }
 
+  const by = await deciderLabel(db, client, idea.teamId, actor.userId);
   const blocks: KnownBlock[] =
     outcome.state === "SKIPPED"
-      ? decidedCardBlocks({ ideaId: idea.id, sku: idea.product.sku, state: "SKIPPED", userId: actor.userId, forced: false, reason: null })
+      ? decidedCardBlocks({ ideaId: idea.id, sku: idea.product.sku, state: "SKIPPED", by, forced: false, reason: null })
       : decidedCardBlocks({
           ideaId: idea.id,
           sku: idea.product.sku,
           state: "APPROVED",
           headline: outcome.headline,
-          userId: actor.userId,
+          by,
           forced: actor.forced,
           reason: actor.reason,
           generation: { started: outcome.roundStarted, candidates: outcome.candidates, estimateUsd: outcome.estimateUsd },

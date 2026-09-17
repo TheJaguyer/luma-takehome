@@ -14,7 +14,7 @@ export async function themesCommand(db: Db, teamId: string, publicBaseUrl: strin
     include: { _count: { select: { images: { where: { revokedAt: null } } } } },
   });
   if (themes.length === 0) {
-    return { text: "No themes yet. They're created from an import's campaign question — pick *New theme…* there." };
+    return { text: "No themes yet. They're created from an import's theme question — pick *New theme…* there." };
   }
   const base = publicBaseUrl.replace(/\/$/, "");
   const blocks: KnownBlock[] = [

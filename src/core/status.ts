@@ -110,7 +110,7 @@ export async function loadStatus(db: Db, teamId: string) {
         ideas,
         latestRound: latest ? { state: latest.state, succeeded } : null,
       });
-      const label = themeId ? ` (${themeName.get(themeId) ?? "campaign"})` : "";
+      const label = themeId ? ` (${themeName.get(themeId) ?? "theme"})` : "";
       const roundLink = latest?.messageChannelId && latest.messageTs ? { channel: latest.messageChannelId, ts: latest.messageTs } : null;
       const ideaLink = idea?.cardChannelId && idea.cardTs ? { channel: idea.cardChannelId, ts: idea.cardTs } : null;
       let waiting: Waiting | null = null;
@@ -204,9 +204,9 @@ export async function loadStatus(db: Db, teamId: string) {
     productIds: d.products.map((p) => p.productId),
     waiting:
       d.state === "AWAITING_THEME" && d.summaryChannelId && d.summaryTs
-        ? { on: "anyone", what: "campaign question unanswered — no ideas drafted", since: d.importedAt, link: { channel: d.summaryChannelId, ts: d.summaryTs } }
+        ? { on: "anyone", what: "theme question unanswered — no ideas drafted", since: d.importedAt, link: { channel: d.summaryChannelId, ts: d.summaryTs } }
         : d.state === "AWAITING_THEME"
-          ? { on: "anyone", what: "campaign question unanswered — no ideas drafted", since: d.importedAt, link: null }
+          ? { on: "anyone", what: "theme question unanswered — no ideas drafted", since: d.importedAt, link: null }
           : null,
     lastActivityAt: d.lastProgressAt,
   }));

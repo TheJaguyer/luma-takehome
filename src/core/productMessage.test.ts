@@ -12,7 +12,7 @@ const view = (over: Partial<RoundView> & { state?: RoundView["round"]["state"] }
   maxRounds: 3,
   product: { sku: "HG-002", name: "Stoneware Mug 12oz", color: "Sage" },
   theme: null,
-  idea: { headline: "Morning counter", decidedBy: "U1", forced: false, forceReason: null, state: "APPROVED" },
+  idea: { headline: "Morning counter", decidedBy: null, forced: false, forceReason: null, state: "APPROVED" },
   candidates: candidates(["SUCCEEDED", "SUCCEEDED", "SUCCEEDED", "SUCCEEDED"]),
   live: 0,
   ...over,
@@ -41,12 +41,28 @@ test("a short round offers retry for the missing ones only", () => {
   assert.match(text(short), /Retry 2 missing/);
 });
 
-test("done collapses to one line, with every candidate still reachable", () => {
+test("done collapses to one line, and the only thing left to do is another idea", () => {
   const done = view({ candidates: candidates(["SUCCEEDED", "SUCCEEDED", "SUCCEEDED", "SUCCEEDED"], [1, 3]), live: 2 });
   const blocks = roundMessageBlocks(done);
   assert.equal(blocks.length, 1);
   assert.match(text(done), /done — 2 approved images, live now/);
-  assert.match(text(done), /See all 4/);
+  assert.deepEqual(actionIds(done), []);
+  assert.match(text(done), /"action_id":"round_new_idea".+Generate another/);
+});
+
+test("a decider is named only when it is not the approver, and never as a mention", () => {
+  // deciderLabel (src/core/people.ts) returns null for the approver, a plain name for anyone else.
+  assert.doesNotMatch(text(view({ idea: { ...view().idea, decidedBy: null } })), /approved by/);
+  const other = text(view({ idea: { ...view().idea, decidedBy: "Sam" } }));
+  assert.match(other, /approved by Sam/);
+  assert.doesNotMatch(other, /<@/);
+});
+
+test("the leading emoji says what is happening now", () => {
+  assert.match(text(view({ state: "GENERATING" })), /🔄 /);
+  assert.match(text(view()), /🖼 /);
+  assert.match(text(view({ state: "CLOSED", live: 1 })), /⚠️ /);
+  assert.match(text(view({ live: 2, candidates: candidates(["SUCCEEDED"], [1]) })), /✅ /);
 });
 
 test("closed and short says it is waiting on a person, and stops offering rounds at the limit", () => {
@@ -80,7 +96,7 @@ test("reverting renders from what is live: back to untouched at 0, one fewer oth
   assert.doesNotMatch(text(revertedFromDone), /done —/);
 });
 
-test("a campaign round counts only its own set: holiday candidates on an everyday-done product still show", () => {
+test("a themed round counts only its own set: holiday candidates on an everyday-done product still show", () => {
   // HG-002 has 2 everyday images (done), and its holiday candidates just came back: live in the holiday set is 0.
   const holiday = view({ theme: "holiday", live: 0 });
   assert.deepEqual(actionIds(holiday), ["candidate_open_1", "candidate_open_2", "candidate_open_3", "candidate_open_4", "round_reject"]);

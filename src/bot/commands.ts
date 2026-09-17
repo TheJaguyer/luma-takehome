@@ -18,7 +18,7 @@ const HELP = [
   "*Shutter* turns shot ideas into approved product images.",
   "• Drop a CSV export from the catalogue sheet in this channel to import products.",
   "• `/shots style` — see or change the house style",
-  "• `/shots themes` — campaign themes, the name the site requests, and each one's look",
+  "• `/shots themes` — the themes the site can ask for, and each one's look",
   "• `/shots setup` — start setup here, if I was invited before I could hear it",
   "• `/shots export` — post products.csv (status and image links) and the event log here",
   "• `/shots retry` — retry every round that came back missing candidates",
