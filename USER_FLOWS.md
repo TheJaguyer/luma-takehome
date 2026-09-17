@@ -81,7 +81,7 @@ and the channel has been told what to do next.
 Two separate acts, and only the second one matters to this flow:
 
 - **Install to the workspace** — OAuth, once, possibly done by an admin who is not on this team.
-- **Invite to a channel** — `/invite @shots` in the channel the team wants reviews in.
+- **Invite to a channel** — `/invite @shutter` in the channel the team wants reviews in.
 
 **The invite is the configuration.** Whichever channel the bot is invited to becomes the
 review channel (#2a). There is no separate "choose a channel" step and no channel picker to

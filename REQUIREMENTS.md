@@ -422,6 +422,9 @@ scheduler that owns a campaign calendar (#4b), or any storefront credentials.
 
 ## The stack
 
+**The bot is called Shutter** (`@shutter`) — fast photos. The slash command stays `/shots`:
+people type what they want, not the bot's name, and every flow is already written against it.
+
 There are **two stacks, and one is a strict subset of the other.**
 
 - **The ideal stack** is what this product runs on if it grows and ships to other customers:
@@ -508,6 +511,20 @@ per-target inputs are a `.env` and a DNS name for Caddy to get a certificate for
 - **AWS** — a single EC2 or Lightsail VM in `us-west-2` running the same Compose file. Not ECS:
   that is the ideal stack, and on the day it would make "deploy" mean something different on each
   target.
+- **Local** — the same Compose file on a laptop, with no public URL. **Slack reaches the `bot` over
+  Socket Mode locally and over HTTP (through Caddy) when deployed.** Bolt picks the receiver from
+  configuration — `SLACK_APP_TOKEN` present means Socket Mode — so this is a setting, not a second
+  code path, and the subset rule holds. **Caddy still runs locally**, on plain HTTP at
+  `http://localhost`, so the lookup and image routing are exercised all day rather than first
+  seen on deploy; only Slack's path differs.
+  - *Rejected: HTTP everywhere with a tunnel locally* (cloudflared or ngrok). Would make local
+    identical to deployed, Caddy routing included. Lost on a tool to install and keep running, and
+    a Slack app request URL to update whenever the tunnel's URL changes.
+  - *What it costs:* one more Slack token, and the HTTP receiver goes untested until the first
+    deploy — which is one reason the skeleton deploys early rather than at the end of the day.
+  - *Also means:* contact sheets and candidates are **uploaded to Slack as bytes**, never linked
+    from Garage, so nothing a reviewer sees in Slack depends on a public image URL. Luma fetches
+    `source` from the catalogue's already-public photo URLs.
 
 **Why the process split is paid for on the day (~30–45 min).** It maps one-to-one onto ECS
 services, and it relocates the single-instance problem instead of hiding it. The old shape — one

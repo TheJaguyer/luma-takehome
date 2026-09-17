@@ -1,0 +1,383 @@
+// The data model for Shutter. Read top to bottom it follows the flows:
+// install (Flow 0) → drop and products (Flow 1) → ideas (Flow 2) → rounds, candidates and
+// approved images (Flow 3, Flow 7) → the event log (Flow 4, #1, #16).
+//
+// Every table carries team_id: a column and a habit, not a working multi-tenant system
+// (REQUIREMENTS, "What this costs").
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Flow 0: install and setup ────────────────────────────────────────────────
+
+model Install {
+  teamId              String    @id @map("team_id")
+  channelId           String?   @map("channel_id") // the review channel (#2a): wherever the bot was invited
+  setupStage          SetupStage @default(AWAITING_INVITE) @map("setup_stage")
+  houseStyle          String?   @map("house_style") // #3b — the team's own words
+  houseStyleSkipped   Boolean   @default(false) @map("house_style_skipped")
+  candidatesPerRound  Int       @default(4) @map("candidates_per_round") // #13
+  maxRounds           Int       @default(3) @map("max_rounds") // #13
+  defaultModel        String    @default("uni-1") @map("default_model") // #14
+  nudgeAfterDays      Int       @default(3) @map("nudge_after_days") // Flow 4, Step 6
+  lastNudgeAt         DateTime? @map("last_nudge_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  approvers Approver[]
+
+  @@map("installs")
+}
+
+enum SetupStage {
+  AWAITING_INVITE
+  CONFIRM_APPROVER
+  ASK_HOUSE_STYLE
+  COMPLETE
+}
+
+/// The approver role (#1). Never empty once setup completes; removals are soft so the
+/// record of who could decide, and when, survives.
+model Approver {
+  id        String    @id @default(cuid())
+  teamId    String    @map("team_id")
+  userId    String    @map("user_id")
+  addedBy   String    @map("added_by")
+  addedAt   DateTime  @default(now()) @map("added_at")
+  removedBy String?   @map("removed_by")
+  removedAt DateTime? @map("removed_at")
+
+  install Install @relation(fields: [teamId], references: [teamId])
+
+  @@index([teamId, userId])
+  @@map("approvers")
+}
+
+/// A campaign theme (Flow 7, Step 4). The name is what the site requests and never changes;
+/// the look steers drafting and can be edited.
+model Theme {
+  id        String   @id @default(cuid())
+  teamId    String   @map("team_id")
+  name      String
+  look      String
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  drops  Drop[]
+  ideas  Idea[]
+  images Image[]
+
+  @@unique([teamId, name])
+  @@map("themes")
+}
+
+// ─── Flow 1: import ───────────────────────────────────────────────────────────
+
+/// One CSV import. Its identity is the import; the name is a label (Flow 1, decision 1.2).
+model Drop {
+  id               String      @id @default(cuid())
+  teamId           String      @map("team_id")
+  name             String
+  filename         String
+  slackFileId      String      @map("slack_file_id")
+  importedBy       String      @map("imported_by")
+  importedAt       DateTime    @default(now()) @map("imported_at")
+  state            DropState   @default(IMPORTING)
+  // The campaign question (decision 1.3 + 1.4). Answered = drafting may start.
+  themeAnsweredAt  DateTime?   @map("theme_answered_at")
+  themeAnsweredBy  String?     @map("theme_answered_by")
+  themeId          String?     @map("theme_id")
+  // What the import did, kept for the summary and for status: rejected rows, unfetchable photos,
+  // unarchived SKUs, existing rows left unchanged.
+  report           Json?
+  summaryChannelId String?     @map("summary_channel_id")
+  summaryTs        String?     @map("summary_ts")
+  lastDailyPostAt  DateTime?   @map("last_daily_post_at")
+  lastProgressAt   DateTime    @default(now()) @map("last_progress_at")
+  completedAt      DateTime?   @map("completed_at")
+
+  theme    Theme?        @relation(fields: [themeId], references: [id])
+  products DropProduct[]
+  ideas    Idea[]
+
+  @@index([teamId, importedAt])
+  @@map("drops")
+}
+
+enum DropState {
+  IMPORTING
+  AWAITING_THEME
+  DRAFTING
+  OPEN
+  COMPLETE
+  FAILED
+}
+
+model Product {
+  id                    String    @id @default(cuid())
+  teamId                String    @map("team_id")
+  sku                   String
+  name                  String?
+  category              String?
+  color                 String?
+  material              String?
+  price                 String?   // kept as exported ("$48"); nothing computes with it
+  notes                 String?   // #7 — shown verbatim, never parsed
+  sheetShotIdea         String?   @map("sheet_shot_idea")
+  photoUrl              String?   @map("photo_url") // as the sheet last said it
+  priority              Boolean   @default(false) // #7
+  archivedAt            DateTime? @map("archived_at") // #6 — archive, never delete
+  // "Needs a source photo" (Flow 1, Step 5) is derived: no current source photo.
+  currentSourcePhotoId  String?   @unique @map("current_source_photo_id")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  currentSourcePhoto SourcePhoto?  @relation("CurrentSourcePhoto", fields: [currentSourcePhotoId], references: [id])
+  sourcePhotos       SourcePhoto[] @relation("SourcePhotoVersions")
+  drops              DropProduct[]
+  ideas              Idea[]
+  rounds             Round[]
+  images             Image[]
+
+  @@unique([teamId, sku])
+  @@map("products")
+}
+
+model DropProduct {
+  dropId      String   @map("drop_id")
+  productId   String   @map("product_id")
+  outcome     ImportOutcome
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  drop    Drop    @relation(fields: [dropId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@id([dropId, productId])
+  @@map("drop_products")
+}
+
+enum ImportOutcome {
+  CREATED
+  UNARCHIVED
+  UNCHANGED
+  CHANGED_NOT_APPLIED // change-review is deferred; the summary must say so (Part 5)
+}
+
+/// Versions, not overwrites (#11, Flow 6 Step 2). "Current" is a pointer on Product.
+model SourcePhoto {
+  id          String   @id @default(cuid())
+  productId   String   @map("product_id")
+  version     Int
+  originalUrl String?  @map("original_url")
+  storageKey  String   @map("storage_key")
+  contentType String   @map("content_type")
+  width       Int
+  height      Int
+  createdBy   String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  product     Product   @relation("SourcePhotoVersions", fields: [productId], references: [id])
+  currentFor  Product?  @relation("CurrentSourcePhoto")
+  rounds      Round[]
+
+  @@unique([productId, version])
+  @@map("source_photos")
+}
+
+// ─── Flow 2: ideas ────────────────────────────────────────────────────────────
+
+/// A request for a styled shot. Approval is per idea, not per product (Flow 2, Branches).
+model Idea {
+  id               String     @id @default(cuid())
+  teamId           String     @map("team_id")
+  productId        String     @map("product_id")
+  dropId           String?    @map("drop_id")
+  themeId          String?    @map("theme_id")
+  mode             IdeaMode
+  state            IdeaState  @default(DRAFTING)
+  rawSheetIdea     String?    @map("raw_sheet_idea") // #9 — shown as context
+  // What drafting ran against, recorded so history stays truthful when either is edited (#3b).
+  houseStyleUsed   String?    @map("house_style_used")
+  themeLookUsed    String?    @map("theme_look_used")
+  model            String?    // null = install default (#14)
+  // The decision.
+  approvedOptionId String?    @unique @map("approved_option_id")
+  approvedPrompt   String?    @map("approved_prompt") // exactly what generates (decision 2.3)
+  edited           Boolean    @default(false)
+  decidedBy        String?    @map("decided_by")
+  decidedAt        DateTime?  @map("decided_at")
+  forced           Boolean    @default(false)
+  forceReason      String?    @map("force_reason")
+  // The card (Flow 2, Step 3) — collapses in place once decided.
+  cardChannelId    String?    @map("card_channel_id")
+  cardTs           String?    @map("card_ts")
+  createdAt        DateTime   @default(now()) @map("created_at")
+
+  product        Product      @relation(fields: [productId], references: [id])
+  drop           Drop?        @relation(fields: [dropId], references: [id])
+  theme          Theme?       @relation(fields: [themeId], references: [id])
+  options        IdeaOption[] @relation("IdeaOptions")
+  approvedOption IdeaOption?  @relation("ApprovedOption", fields: [approvedOptionId], references: [id])
+  rounds         Round[]
+
+  @@index([teamId, state])
+  @@map("ideas")
+}
+
+enum IdeaMode {
+  EXPAND // arrived with a sheet idea
+  DRAFT // arrived blank
+  OWN // written from scratch in Slack
+}
+
+enum IdeaState {
+  DRAFTING
+  AWAITING_REVIEW
+  APPROVED
+  SKIPPED
+  SUPERSEDED // "Try a different idea" (Flow 3, Step 5)
+}
+
+model IdeaOption {
+  id         String @id @default(cuid())
+  ideaId     String @map("idea_id")
+  position   Int    // 1–3
+  headline   String // the one line chosen between on a phone
+  prompt     String // the full structured scene (#9)
+
+  idea       Idea  @relation("IdeaOptions", fields: [ideaId], references: [id])
+  approvedIn Idea? @relation("ApprovedOption")
+
+  @@unique([ideaId, position])
+  @@map("idea_options")
+}
+
+// ─── Flow 3: generation and approval ──────────────────────────────────────────
+
+model Round {
+  id               String     @id @default(cuid())
+  teamId           String     @map("team_id")
+  ideaId           String     @map("idea_id")
+  productId        String     @map("product_id")
+  sourcePhotoId    String     @map("source_photo_id") // #11
+  number           Int
+  model            String
+  feedback         String?    // "What should be different this time?" (decision 3.2)
+  triggeredBy      String     @map("triggered_by")
+  state            RoundState @default(GENERATING)
+  rejectedBy       String?    @map("rejected_by") // [None of these] — per round, never per image
+  rejectedAt       DateTime?  @map("rejected_at")
+  contactSheetKey  String?    @map("contact_sheet_key")
+  messageChannelId String?    @map("message_channel_id")
+  messageTs        String?    @map("message_ts")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  completedAt      DateTime?  @map("completed_at")
+
+  idea        Idea        @relation(fields: [ideaId], references: [id])
+  product     Product     @relation(fields: [productId], references: [id])
+  sourcePhoto SourcePhoto @relation(fields: [sourcePhotoId], references: [id])
+  candidates  Candidate[]
+
+  @@unique([ideaId, number])
+  @@index([state])
+  @@map("rounds")
+}
+
+enum RoundState {
+  GENERATING
+  AWAITING_DECISION
+  CLOSED
+}
+
+/// One Luma generation. The worker's reconciliation loop is "select every candidate not in a
+/// terminal state and ask Luma about it" — so this row is the durable job.
+model Candidate {
+  id           String         @id @default(cuid())
+  roundId      String         @map("round_id")
+  position     Int            // 1–4, the number on the contact sheet
+  state        CandidateState @default(PENDING)
+  lumaId       String?        @map("luma_id")
+  costUsd      Decimal?       @map("cost_usd") @db.Decimal(10, 4) // #13
+  storageKey   String?        @map("storage_key")
+  width        Int?
+  height       Int?
+  error        String?
+  attempts     Int            @default(0)
+  nextPollAt   DateTime       @default(now()) @map("next_poll_at")
+  submittedAt  DateTime?      @map("submitted_at")
+  completedAt  DateTime?      @map("completed_at")
+
+  round Round  @relation(fields: [roundId], references: [id])
+  image Image?
+
+  @@unique([roundId, position])
+  @@index([state, nextPollAt])
+  @@map("candidates")
+}
+
+enum CandidateState {
+  PENDING // row exists, not yet submitted
+  SUBMITTED // Luma has it; polling
+  SUCCEEDED // stored in our bucket
+  FAILED // failed or moderated — refunded by Luma
+}
+
+/// An approved, published image (#4). Its public key is write-once; un-approving sets
+/// revokedAt and never touches the bytes.
+model Image {
+  id          String    @id @default(cuid())
+  teamId      String    @map("team_id")
+  productId   String    @map("product_id")
+  candidateId String?   @unique @map("candidate_id") // null for photographer uploads (Flow 5, next)
+  themeId     String?   @map("theme_id") // null = default set
+  origin      ImageOrigin
+  model       String?
+  publicKey   String    @unique @map("public_key") // images/<sku>/<image_id>.jpg
+  width       Int
+  height      Int
+  // Display order within the product's theme set: approval order, and [Make primary] moves an
+  // image ahead of the rest (Flow 7, decision 7.1).
+  sortKey     Float     @map("sort_key")
+  approvedBy  String    @map("approved_by")
+  approvedAt  DateTime  @default(now()) @map("approved_at")
+  forced      Boolean   @default(false)
+  forceReason String?   @map("force_reason")
+  revokedBy   String?   @map("revoked_by")
+  revokedAt   DateTime? @map("revoked_at")
+
+  product   Product    @relation(fields: [productId], references: [id])
+  candidate Candidate? @relation(fields: [candidateId], references: [id])
+  theme     Theme?     @relation(fields: [themeId], references: [id])
+
+  @@index([productId, revokedAt])
+  @@map("images")
+}
+
+enum ImageOrigin {
+  ai
+  photographer
+}
+
+// ─── Flow 4, #1, #16: the event log ───────────────────────────────────────────
+
+/// Written beside every state change. Exported separately from products: different shapes.
+model Event {
+  id        BigInt   @id @default(autoincrement())
+  teamId    String   @map("team_id")
+  at        DateTime @default(now())
+  actor     String   // a Slack user id, or "system"
+  type      String   // e.g. idea.approved, image.approved, image.revoked, drop.imported
+  productId String?  @map("product_id")
+  dropId    String?  @map("drop_id")
+  data      Json?
+
+  @@index([teamId, at])
+  @@index([productId, at])
+  @@map("events")
+}

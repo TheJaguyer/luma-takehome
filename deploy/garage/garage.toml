@@ -1,0 +1,23 @@
+# Single-node Garage: the 1-day stack's image store (REQUIREMENTS, "The 1-day stack").
+# rpc_secret and admin_token come from GARAGE_RPC_SECRET / GARAGE_ADMIN_TOKEN in compose.yaml.
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+
+# Public read goes through the website endpoint, which picks the bucket from the Host header:
+# Caddy sends Host: <bucket>.web.garage for /images/*.
+[s3_web]
+bind_addr = "[::]:3902"
+root_domain = ".web.garage"
+index = "index.html"
+
+[admin]
+api_bind_addr = "[::]:3903"

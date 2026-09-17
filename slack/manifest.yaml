@@ -1,0 +1,42 @@
+# Create the app at https://api.slack.com/apps → "From a manifest" → paste this.
+# Local: Socket Mode on (as below). Deployed: set socket_mode_enabled: false and uncomment the
+# request URLs, pointing them at https://<your host>/slack/events.
+display_information:
+  name: Shutter
+  description: Turns shot ideas into approved, published product images.
+  background_color: "#2c2d30"
+features:
+  bot_user:
+    display_name: shutter
+    always_online: true
+  slash_commands:
+    - command: /shots
+      description: Status, ideas, and settings for styled product shots
+      usage_hint: "status [drop] | HG-002 | ideas | style | help"
+      should_escape: false
+      # url: https://<your host>/slack/events
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - commands
+      - files:read # CSV exports dropped in the channel (Flow 1)
+      - files:write # contact sheets and candidates are uploaded, not linked
+      - channels:history # see file drops in the review channel
+      - groups:history
+      - channels:read
+      - groups:read
+      - users:read # refuse bots and guests as approvers (Flow 0)
+settings:
+  event_subscriptions:
+    # request_url: https://<your host>/slack/events
+    bot_events:
+      - member_joined_channel # the invite is the configuration (Flow 0, Step 1)
+      - message.channels
+      - message.groups
+  interactivity:
+    is_enabled: true
+    # request_url: https://<your host>/slack/events
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false

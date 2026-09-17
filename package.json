@@ -1,0 +1,41 @@
+{
+  "name": "shots",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "24",
+      "onFail": "download"
+    }
+  },
+  "scripts": {
+    "bot": "node --import tsx src/bot/index.ts",
+    "worker": "node --import tsx src/worker/index.ts",
+    "lookup": "node --import tsx src/lookup/index.ts",
+    "storage:init": "node --import tsx src/scripts/storage-init.ts",
+    "db:generate": "prisma generate",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.126.0",
+    "@aws-sdk/client-s3": "^3.1134.0",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "@slack/bolt": "^5.1.0",
+    "csv-parse": "^7.0.2",
+    "node-cron": "^4.6.0",
+    "pino": "^10.3.1",
+    "prisma": "7.10.0",
+    "sharp": "^0.35.4",
+    "tsx": "^4.23.13",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "~5.9.3"
+  }
+}

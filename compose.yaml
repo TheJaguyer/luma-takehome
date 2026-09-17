@@ -1,0 +1,112 @@
+# The whole product: `docker compose up -d --build`.
+# The only outside dependencies are API keys in .env (see .env.example).
+
+x-app: &app
+  build: .
+  image: ${APP_IMAGE:-shots:local}
+  restart: unless-stopped
+  env_file:
+    - path: .env
+      required: false
+    - path: .env.local # the challenge archive's Luma key lives here
+      required: false
+  environment: &app-env
+    DATABASE_URL: postgres://shots:${POSTGRES_PASSWORD:-shots}@postgres:5432/shots
+    S3_ENDPOINT: http://garage:3900
+    S3_REGION: garage
+    S3_BUCKET: ${S3_BUCKET:-shots}
+    S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-GK0123456789abcdef01234567}
+    S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+    PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}
+
+services:
+  caddy:
+    image: caddy:2.11-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-http://localhost}
+      S3_BUCKET: ${S3_BUCKET:-shots}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - bot
+      - lookup
+      - garage
+
+  bot:
+    <<: *app
+    command: ["node", "--import", "tsx", "src/bot/index.ts"]
+    depends_on: &after-setup
+      migrate:
+        condition: service_completed_successfully
+      storage-init:
+        condition: service_completed_successfully
+
+  # Exactly one replica: a second copy double-polls Luma and double-posts the daily message.
+  worker:
+    <<: *app
+    command: ["node", "--import", "tsx", "src/worker/index.ts"]
+    deploy:
+      replicas: 1
+    depends_on: *after-setup
+
+  lookup:
+    <<: *app
+    command: ["node", "--import", "tsx", "src/lookup/index.ts"]
+    depends_on: *after-setup
+
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["node_modules/.bin/prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Idempotent: layout, key, bucket, public website access. Safe to run on every `up`.
+  storage-init:
+    <<: *app
+    restart: "no"
+    command: ["node", "--import", "tsx", "src/scripts/storage-init.ts"]
+    environment:
+      <<: *app-env
+      GARAGE_ADMIN_URL: http://garage:3903
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-local-dev-admin-token}
+    depends_on:
+      - garage
+
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shots
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shots}
+      POSTGRES_DB: shots
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shots -d shots"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  garage:
+    image: dxflrs/garage:v2.4.1
+    restart: unless-stopped
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:-1111111111111111111111111111111111111111111111111111111111111111}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:-local-dev-admin-token}
+    volumes:
+      - ./deploy/garage/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+
+volumes:
+  caddy-data:
+  postgres-data:
+  garage-meta:
+  garage-data:

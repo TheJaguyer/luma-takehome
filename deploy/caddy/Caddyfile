@@ -1,0 +1,29 @@
+# The only service with public ports. Locally SITE_ADDRESS is http://localhost (plain HTTP);
+# deployed it is a bare hostname, and Caddy gets a Let's Encrypt certificate for it.
+{$SITE_ADDRESS} {
+	encode gzip
+
+	# Slack events and interactivity, when the bot runs in HTTP mode (deployed).
+	handle /slack/* {
+		reverse_proxy bot:3000
+	}
+
+	# Flow 7's lookup: short-cached, because it is what changes on approval.
+	handle /products/* {
+		reverse_proxy lookup:3001
+		header Cache-Control "public, max-age=30"
+	}
+
+	# Approved images only: nothing outside the images/ prefix is routable.
+	# Keys are write-once, so they cache forever.
+	handle /images/* {
+		reverse_proxy garage:3902 {
+			header_up Host {$S3_BUCKET}.web.garage
+		}
+		header Cache-Control "public, max-age=31536000, immutable"
+	}
+
+	handle {
+		respond "Not found" 404
+	}
+}
