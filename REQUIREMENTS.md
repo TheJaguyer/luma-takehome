@@ -286,6 +286,16 @@ To keep or cut. Each needs a reason either way.
 - [x] **Replace source photo (ASSUMPTIONS #11, USER_FLOWS Flow 6).** Per-SKU upload in Slack; versioned; originals kept. **Replacing generates a new round immediately** (cost on the button) and **resets the round counter**, since a different source is not the same thing #13's max-rounds limit exists to prevent. If the SKU already has approved images, it asks **keep them** or **start over** — the same question an accepted CSV photo change now asks (#12), unifying the two roads. Non-square photos are accepted with a plain warning that output size comes from the source (#15).
 - [x] **Audit trail (USER_FLOWS Flow 4).** Recorded and exported, **no browsable surface**. Captures: who approved each idea and image, when, whether forced and the reason given; who accepted each import change; who triggered each generation with model, round and cost; origin and source photo version; the campaign theme per idea; every live-image change and revert. Nobody browses an audit trail until something is wrong, and the questions asked then are already answered inline — a forced approval shows its reason where it appears, and the live-change notice names who approved. The product export carries current state and last approver; the full event log exports separately. A web data view is in Part 4.
 - [x] **Updated CSV export** with status and image-link columns. **Promoted from nice-to-have:** with Drive cut (Flow 0, Step 8), this is the only bulk way to hand someone every approved image link.
+  **[settled — build step 7]** `/shots export` posts two files in the review channel: `products.csv`
+  and `events.csv`. products.csv leads with the sheet's own columns under their original headers, so
+  it **re-imports as-is**; then Status (the same stages as `/shots status`), Approved Images, Last
+  Approved By, Last Approved At, Spend; then **one Default Images column and one `Images: <theme>`
+  column per theme**, each a comma-separated list in display order, primary first — short cells, and
+  an empty theme column shows at a glance which products are missing that set. Formula-looking cells
+  are neutralised so a note can't run in a spreadsheet. *(Rejected: Image 1–3 columns — tidy for
+  one set, but mixes themes or multiplies columns. Rejected: one cell with every link — never grows,
+  but hides a missing theme and has to be split before anyone can click a link. Rejected: DM to the
+  requester — keeps the channel clean, but adds the DM path #2a avoided.)*
 
 ## Part 4 — Out of scope / future
 

@@ -34,7 +34,7 @@ registerSetup({ app, db, log, publicBaseUrl: config.PUBLIC_BASE_URL });
 registerImports({ app, db, log });
 registerIdeas({ app, db, log });
 registerCandidates({ app, db, log, s3, bucket: config.S3_BUCKET, publicBaseUrl: config.PUBLIC_BASE_URL });
-registerCommands({ app, db, log, s3, bucket: config.S3_BUCKET, socketMode });
+registerCommands({ app, db, log, s3, bucket: config.S3_BUCKET, socketMode, publicBaseUrl: config.PUBLIC_BASE_URL });
 
 app.action("round_retry_missing", async ({ ack, body, client, respond }) => {
   await ack();

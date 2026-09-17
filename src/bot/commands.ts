@@ -3,24 +3,26 @@
 import { HeadBucketCommand, type S3Client } from "@aws-sdk/client-s3";
 import type { AllMiddlewareArgs, App, SlackCommandMiddlewareArgs } from "@slack/bolt";
 import type { Logger } from "pino";
+import { buildEventsCsv, buildProductsCsv } from "../core/exportCsv.js";
 import { roundsWithMissing } from "../core/roundRetry.js";
 import type { Db } from "../lib/db.js";
 import { houseStyleModal, startSetup } from "./setup.js";
 
-type Deps = { app: App; db: Db; log: Logger; s3: S3Client; bucket: string; socketMode: boolean };
+type Deps = { app: App; db: Db; log: Logger; s3: S3Client; bucket: string; socketMode: boolean; publicBaseUrl: string };
 
 const HELP = [
   "*Shutter* turns shot ideas into approved product images.",
   "• Drop a CSV export from the catalogue sheet in this channel to import products.",
   "• `/shots style` — see or change the house style",
   "• `/shots setup` — start setup here, if I was invited before I could hear it",
+  "• `/shots export` — post products.csv (status and image links) and the event log here",
   "• `/shots retry` — retry every round that came back missing candidates",
   "• `/shots health` — check that everything I depend on is answering",
   "• `/shots ideas` — what's waiting for a decision, with links (and retry any failed drafts)",
   "_Coming next: `/shots status`, `/shots HG-002`._",
 ].join("\n");
 
-export function registerCommands({ app, db, log, s3, bucket, socketMode }: Deps) {
+export function registerCommands({ app, db, log, s3, bucket, socketMode, publicBaseUrl }: Deps) {
   app.command("/shots", async (args) => {
     await args.ack();
     await route(args);
@@ -101,6 +103,38 @@ export function registerCommands({ app, db, log, s3, bucket, socketMode }: Deps)
             },
           ],
         });
+      }
+
+      case "export": {
+        // Files go to the review channel: the channel is the record, and the latest export is
+        // findable by anyone (#2a). Slack IDs become names so the file reads without a lookup.
+        const install = await db.install.findUnique({ where: { teamId: command.team_id } });
+        const channel = install?.channelId ?? command.channel_id;
+        const names = new Map<string, string>();
+        const nameOf = async (userId: string | null) => {
+          if (!userId) return "";
+          if (!names.has(userId)) {
+            const { user } = await client.users.info({ user: userId }).catch(() => ({ user: undefined }));
+            names.set(userId, user?.profile?.display_name || user?.real_name || user?.name || userId);
+          }
+          return names.get(userId)!;
+        };
+        const [products, events] = await Promise.all([
+          buildProductsCsv(db, command.team_id, publicBaseUrl, nameOf),
+          buildEventsCsv(db, command.team_id, nameOf),
+        ]);
+        const date = new Date().toISOString().slice(0, 10);
+        await client.filesUploadV2({
+          channel_id: channel,
+          initial_comment:
+            `📤  Export for <@${command.user_id}> — ${products.products} products · ${products.images} approved images · ${events.events} events\n` +
+            "_products.csv re-imports as-is: drop it back in and only new products or ideas are picked up._",
+          file_uploads: [
+            { file: Buffer.from(products.csv, "utf8"), filename: `shutter-products-${date}.csv`, title: `Products · ${date}` },
+            { file: Buffer.from(events.csv, "utf8"), filename: `shutter-events-${date}.csv`, title: `Event log · ${date}` },
+          ],
+        });
+        return;
       }
 
       case "health": {
