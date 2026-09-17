@@ -16,13 +16,14 @@ export const SKU_PATTERN = /^[a-z]{1,6}-?\d{1,6}[a-z]?$/i;
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-export async function statusCommand(db: Db, teamId: string, args: string[], respond: Respond) {
+export async function statusCommand(db: Db, web: WebClient, teamId: string, args: string[], respond: Respond) {
   const install = await db.install.findUnique({ where: { teamId } });
   if (!install) return respond({ response_type: "ephemeral", text: "I'm not set up yet — `/invite @shutter` to a channel first." });
   const status = await loadStatus(db, teamId);
+  const resolve = permalinkResolver(web);
   const query = args.join(" ").trim();
 
-  if (!query) return respond({ response_type: "in_channel", text: "Status: everything", blocks: everythingBlocks(status) });
+  if (!query) return respond({ response_type: "in_channel", text: "Status: everything", blocks: await everythingBlocks(status, resolve) });
   if (SKU_PATTERN.test(query)) return productStatus(status, query, respond);
 
   // A drop by name, loosely: "q4-drop", "Q4 Drop" and "q4 drop" are the same request.
@@ -33,7 +34,7 @@ export async function statusCommand(db: Db, teamId: string, args: string[], resp
     // A typo should not be a dead end.
     return respond({ response_type: "ephemeral", text: `I don't know a drop called “${query}”.${names.length ? `\n\nDrops:\n${names.join("\n")}` : ""}` });
   }
-  return respond({ response_type: "in_channel", text: `Status: ${drop.name}`, blocks: dropBlocks(status, drop.id) });
+  return respond({ response_type: "in_channel", text: `Status: ${drop.name}`, blocks: await dropBlocks(status, drop.id, resolve) });
 }
 
 export async function productStatus(status: Status, query: string, respond: Respond) {

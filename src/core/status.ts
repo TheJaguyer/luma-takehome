@@ -17,7 +17,10 @@ export type Waiting = {
   link: { channel: string; ts: string } | null;
 };
 
-export type Progress = { stage: Stage; live: number; waiting: Waiting | null };
+export type Progress = { stage: Stage; live: number; waiting: Waiting | null; generating: number; link: Waiting["link"] };
+
+/** Candidates Luma still owes us. Terminal states are SUCCEEDED and FAILED; everything else is in flight. */
+const IN_FLIGHT = new Set(["PENDING", "SUBMITTING", "SUBMITTED"]);
 
 export type ProductStatus = {
   id: string;
@@ -30,6 +33,14 @@ export type ProductStatus = {
   liveByTheme: Map<string | null, number>; // null = default set
   spend: { total: number; since: (d: Date) => number };
   waiting: Waiting | null;
+  /**
+   * Images in flight right now, counted whatever the stage says. A product done with its everyday
+   * set can have a holiday round generating, and money in the air is worth reporting whether or
+   * not the stage it rolls up to happens to be "generating".
+   */
+  generating: number;
+  /** The product's one message (Flow 3, Step 1), so a status line can be tapped through to it. */
+  link: Waiting["link"];
   /**
    * Progress within one campaign (null = everyday): stage from that campaign's latest idea, done at
    * 2 images in that set. A drop reports on its own campaign, so a holiday run on a product that is
@@ -103,6 +114,8 @@ export async function loadStatus(db: Db, teamId: string) {
       const rounds = themeId === undefined ? p.rounds : p.rounds.filter((r) => ideas.some((i) => i.id === r.ideaId));
       const latest = rounds[0] ?? null;
       const succeeded = latest?.candidates.filter((c) => c.state === "SUCCEEDED").length ?? 0;
+      // Every round, not just the latest: a product can have a round open in two sets at once.
+      const generating = rounds.reduce((n, r) => n + r.candidates.filter((c) => IN_FLIGHT.has(c.state)).length, 0);
       const live = images(themeId).length;
       const stage = productStage({
         live,
@@ -144,7 +157,7 @@ export async function loadStatus(db: Db, teamId: string) {
           break;
         }
       }
-      return { stage, live, waiting, idea };
+      return { stage, live, waiting, generating, link: roundLink ?? ideaLink, idea };
     };
 
     const overall = evaluate(undefined);
@@ -174,9 +187,11 @@ export async function loadStatus(db: Db, teamId: string) {
       liveByTheme,
       spend: { total: costs.reduce((s, c) => s + c.usd, 0), since: (d: Date) => costs.filter((c) => c.at >= d).reduce((s, c) => s + c.usd, 0) },
       waiting,
+      generating: overall.generating,
+      link: overall.link,
       forCampaign: (themeId) => {
-        const { stage, live, waiting } = evaluate(themeId);
-        return { stage, live, waiting };
+        const { stage, live, waiting, generating, link } = evaluate(themeId);
+        return { stage, live, waiting, generating, link };
       },
       dropIds: p.drops.map((d) => d.dropId),
       ideaHeadline: idea?.approvedOption?.headline ?? (idea?.approvedPrompt ? "Written in Slack" : null),

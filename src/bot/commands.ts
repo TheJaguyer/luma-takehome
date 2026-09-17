@@ -48,7 +48,7 @@ export function registerCommands({ app, db, log, s3, bucket, socketMode, publicB
 
     switch (verb.toLowerCase()) {
       case "status":
-        return statusCommand(db, command.team_id, args, respond);
+        return statusCommand(db, client, command.team_id, args, respond);
 
       case "themes": {
         const { text, blocks } = await themesCommand(db, command.team_id, publicBaseUrl);

@@ -29,14 +29,47 @@ const STAGE_LINES: [ProductStatus["stage"][], string, string][] = [
   [["ideas_awaiting_review", "drafting"], "💡", "ideas awaiting review"],
   [["waiting_on_person"], "⚠️", "short — waiting on a person"],
   [["needs_source_photo"], "📷", "need a source photo"],
-  [["not_started", "skipped"], "⏸", "not started or skipped"],
+  // Skipped is a decision someone made; not started is one nobody has. Rolled together they read
+  // as one pile of neglect, and only half of it is.
+  [["skipped"], "⏭", "skipped"],
+  [["not_started"], "⏸", "not started"],
 ];
 
-function stageLines(products: { stage: ProductStatus["stage"] }[]) {
-  return STAGE_LINES.map(([stages, icon, label]) => {
-    const n = products.filter((p) => stages.includes(p.stage)).length;
-    return n ? `${icon}  ${n} ${label}` : null;
-  }).filter(Boolean) as string[];
+type StageRow = { stage: ProductStatus["stage"]; generating?: number; link?: Waiting["link"] };
+
+/**
+ * One line per stage that has anything in it, each one tappable: products are already ordered
+ * priority-first, so the link goes to the first product in that stage — which is the one anybody
+ * reading "1 awaiting a decision" wants to open. A count you can't act on is a dashboard.
+ */
+async function stageLines(products: StageRow[], resolve: LinkResolver) {
+  const lines = await Promise.all(
+    STAGE_LINES.map(async ([stages, icon, label]) => {
+      const inStage = products.filter((p) => stages.includes(p.stage));
+      if (!inStage.length) return null;
+      const url = await firstLink(inStage, resolve);
+      const text = `${inStage.length} ${label}`;
+      return `${icon}  ${url ? `<${url}|${text}>` : text}`;
+    }),
+  );
+  // Money in the air, whatever stage it rolls up to (a done product can have a holiday round out).
+  const generating = products.reduce((n, p) => n + (p.generating ?? 0), 0);
+  if (generating) {
+    const url = await firstLink(products.filter((p) => p.generating), resolve);
+    const text = `${plural(generating, "image")} generating now`;
+    lines.push(`⏳  ${url ? `<${url}|${text}>` : text}`);
+  }
+  return lines.filter(Boolean) as string[];
+}
+
+// Bounded: a permalink that fails to resolve costs an API call, and at 300 products a stage whose
+// links are all stale would spend 300 of them to render one line. The first few or nothing.
+async function firstLink(rows: StageRow[], resolve: LinkResolver) {
+  for (const row of rows.slice(0, 5)) {
+    const url = row.link ? await resolve(row.link) : null;
+    if (url) return url;
+  }
+  return null;
 }
 
 /** Done never moves because of a thin gallery, and a thin gallery never blocks: two signals (#4c vs #5a). */
@@ -49,7 +82,7 @@ function bar(done: number, total: number, width = 17) {
   return "█".repeat(filled) + "░".repeat(width - filled);
 }
 
-export function everythingBlocks(status: Status, now = new Date()): KnownBlock[] {
+export async function everythingBlocks(status: Status, resolve: LinkResolver, now = new Date()): Promise<KnownBlock[]> {
   const { products } = status;
   if (products.length === 0) return [section("📊  Nothing imported yet. Drop a CSV export in the review channel to start.")];
   const stuck = stuckItems(status, products, status.drops, now);
@@ -59,7 +92,7 @@ export function everythingBlocks(status: Status, now = new Date()): KnownBlock[]
   const lines = [
     `📊  *Everything · ${plural(products.length, "product")}*`,
     "",
-    ...stageLines(products),
+    ...(await stageLines(products, resolve)),
     "",
     stuck.length ? `⚠️  ${stuck.length} stuck` : "✅  Nothing is stuck",
     thinGallery.length ? `🖼  ${plural(thinGallery.length, "product")} would show a thin gallery (fewer than ${PAGE_IMAGES} images)` : null,
@@ -68,7 +101,7 @@ export function everythingBlocks(status: Status, now = new Date()): KnownBlock[]
   return withButtons(section(lines.join("\n")), stuck.length > 0, thinGallery.length > 0, "all");
 }
 
-export function dropBlocks(status: Status, dropId: string, opts: { title?: string; now?: Date } = {}): KnownBlock[] {
+export async function dropBlocks(status: Status, dropId: string, resolve: LinkResolver, opts: { title?: string; now?: Date } = {}): Promise<KnownBlock[]> {
   const now = opts.now ?? new Date();
   const drop = status.drops.find((d) => d.id === dropId)!;
   const products = dropProducts(status, dropId);
@@ -84,7 +117,7 @@ export function dropBlocks(status: Status, dropId: string, opts: { title?: strin
     `📊  *${opts.title ?? `${drop.name} · imported ${date}`} · ${plural(products.length, "product")}*${campaignName ? `   🎨 ${campaignName}` : ""}`,
     `${bar(done, products.length)}  ${done} of ${products.length} done`,
     "",
-    ...stageLines(progress).filter((l) => !l.startsWith("✅")),
+    ...(await stageLines(progress, resolve)).filter((l) => !l.startsWith("✅")),
     awaiting.length ? `⭐  Priority waiting on a decision: ${awaiting.join(", ")}` : null,
     drop.waiting ? `⚠️  The theme question hasn't been answered, so no ideas are drafted yet` : null,
     "",
@@ -98,7 +131,7 @@ export function productBlocks(status: Status, p: ProductStatus, now = new Date()
   const title = [p.sku, p.name, p.color].filter(Boolean).join(" · ");
   const headline =
     p.stage === "done"
-      ? `✅  Done — ${plural(p.live, "approved image")}`
+      ? `✅  Done — ${plural(p.live, "approved image")}${p.generating ? ` · ${plural(p.generating, "more image")} generating` : ""}`
       : p.waiting
         ? `${stageIcon(p.stage)}  ${p.waiting.what} · waiting on ${WHO[p.waiting.on]} · ${age(p.waiting.since, now)}`
         : `${stageIcon(p.stage)}  ${p.stage.replace(/_/g, " ")}`;
@@ -111,7 +144,9 @@ export function productBlocks(status: Status, p: ProductStatus, now = new Date()
     "",
     // Split by theme: "3 approved" doesn't say whether a holiday page will render a full gallery.
     `*Images*   ${p.live ? `${p.live} approved · ${sets.join(" · ")}` : "none approved yet"}`,
+    p.stage === "skipped" ? `*Skipped*  its card in the channel has *[Review again]*` : null,
     p.ideaHeadline ? `*Idea*     “${p.ideaHeadline}”${p.ideaDecidedBy ? ` · approved by <@${p.ideaDecidedBy}>` : ""}` : null,
+    p.generating ? `*In flight* ${plural(p.generating, "image")} generating now` : null,
     ...p.rounds.map((r) => `*Round ${r.number}*  ${r.candidates} candidates · ${usd(r.cost)} · ${r.approved} approved`),
     `*Spend*    ${usd(p.spend.total)}`,
   ].filter((l) => l !== null);

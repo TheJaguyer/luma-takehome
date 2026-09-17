@@ -93,7 +93,7 @@ export async function runDaily(db: Db, web: WebClient, log: Logger, teamId: stri
     await web.chat.postMessage({
       channel: install.channelId,
       text: `${drop.name} · day ${day}`,
-      blocks: dropBlocks(status, drop.id, { title: `${drop.name} · day ${day}`, now }),
+      blocks: await dropBlocks(status, drop.id, resolve, { title: `${drop.name} · day ${day}`, now }),
     });
     await db.drop.update({ where: { id: drop.id }, data: { lastDailyPostAt: now } });
     reports++;
