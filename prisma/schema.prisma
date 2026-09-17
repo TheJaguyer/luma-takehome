@@ -308,6 +308,8 @@ model Candidate {
   width        Int?
   height       Int?
   error        String?
+  model        String?        // as submitted; the round's model unless changed
+  prompt       String?        // exactly what was sent, preservation rule included (#14)
   attempts     Int            @default(0)
   nextPollAt   DateTime       @default(now()) @map("next_poll_at")
   submittedAt  DateTime?      @map("submitted_at")
@@ -323,6 +325,7 @@ model Candidate {
 
 enum CandidateState {
   PENDING // row exists, not yet submitted
+  SUBMITTING // claimed; the POST is in flight. Found on restart = outcome unknown → FAILED, never resubmitted
   SUBMITTED // Luma has it; polling
   SUCCEEDED // stored in our bucket
   FAILED // failed or moderated — refunded by Luma

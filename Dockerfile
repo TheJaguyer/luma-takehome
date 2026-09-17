@@ -3,8 +3,10 @@
 FROM node:24-trixie-slim
 
 # openssl: Prisma's schema engine (migrate deploy). ca-certificates: outbound HTTPS.
+# fonts-dejavu-core + fontconfig-config: slim images ship no fonts or font config, and sharp
+# renders the contact sheet's numbers from SVG.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssl ca-certificates \
+ && apt-get install -y --no-install-recommends openssl ca-certificates fonts-dejavu-core fontconfig-config \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -73,7 +73,13 @@
 > product accurately in most generations, so manual review alone is manageable. Systematic
 > image-quality testing moves to Part 4 (next/future) rather than gating the design.
 - [ ] Record observed latency and cost per image for APPROACH.md unit economics — from the
-  build's own runs, not a separate test pass.
+  build's own runs, not a separate test pass. **First data point (build step 3, 2026-09-16, one
+  round of 4 × `uni-1` edits on HG-002):** each image took **62–69s** from submit to completion,
+  running in parallel — slower than the documented 30–60s, so Flow 3's "back in about a minute"
+  is the optimistic end. Submit to candidate message in Slack: **~72s** for the whole round.
+  Output 2048×2048 from a square source (#15 holds). Cost **$0.0434 per image, $0.17 per round**
+  at list price; all four were usable, so per *approved* image the figure depends on approval
+  rate, which only real review will show. Keep the box open until a few more rounds have run.
 
 ## Who we're building for
 

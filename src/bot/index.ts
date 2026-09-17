@@ -45,6 +45,17 @@ app.command("/shots", async ({ ack, respond, command }) => {
   });
 });
 
+// Buttons on the candidate message. The full-size view and approval land in build step 6; until
+// then they acknowledge so Slack doesn't show the tapper an error.
+app.action(/^candidate_open_\d$|^round_reject$/, async ({ ack, respond }) => {
+  await ack();
+  await respond({
+    response_type: "ephemeral",
+    replace_original: false,
+    text: "Reviewing candidates isn't wired up yet (build step 6).",
+  });
+});
+
 app.error(async (err) => {
   log.error({ err }, "unhandled bolt error");
 });

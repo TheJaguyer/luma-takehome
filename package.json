@@ -26,6 +26,7 @@
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "@slack/bolt": "^5.1.0",
+    "@slack/web-api": "^8.1.1",
     "csv-parse": "^7.0.2",
     "node-cron": "^4.6.0",
     "pino": "^10.3.1",
