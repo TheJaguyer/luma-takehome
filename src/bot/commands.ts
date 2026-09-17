@@ -4,9 +4,11 @@ import { HeadBucketCommand, type S3Client } from "@aws-sdk/client-s3";
 import type { AllMiddlewareArgs, App, SlackCommandMiddlewareArgs } from "@slack/bolt";
 import type { Logger } from "pino";
 import { buildEventsCsv, buildProductsCsv } from "../core/exportCsv.js";
+import { loadStatus } from "../core/status.js";
 import { roundsWithMissing } from "../core/roundRetry.js";
 import type { Db } from "../lib/db.js";
 import { houseStyleModal, startSetup } from "./setup.js";
+import { dailyCommand, productStatus, SKU_PATTERN, statusCommand } from "./status.js";
 
 type Deps = { app: App; db: Db; log: Logger; s3: S3Client; bucket: string; socketMode: boolean; publicBaseUrl: string };
 
@@ -19,7 +21,8 @@ const HELP = [
   "• `/shots retry` — retry every round that came back missing candidates",
   "• `/shots health` — check that everything I depend on is answering",
   "• `/shots ideas` — what's waiting for a decision, with links (and retry any failed drafts)",
-  "_Coming next: `/shots status`, `/shots HG-002`._",
+  "• `/shots status` — where everything stands · `/shots status q4-drop` — one drop · `/shots HG-002` — one product",
+  "• `/shots daily` — post today's drop report and nudges now (they post at 9am on their own)",
 ].join("\n");
 
 export function registerCommands({ app, db, log, s3, bucket, socketMode, publicBaseUrl }: Deps) {
@@ -29,10 +32,23 @@ export function registerCommands({ app, db, log, s3, bucket, socketMode, publicB
   });
 
   async function route({ command, respond, client }: SlackCommandMiddlewareArgs & AllMiddlewareArgs) {
-    const [verb = "help"] = command.text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const [verb = "help", ...args] = command.text.trim().split(/\s+/).filter(Boolean);
     log.info({ user: command.user_id, text: command.text }, "/shots");
 
-    switch (verb) {
+    // `/shots HG-002` is the product zoom level.
+    if (SKU_PATTERN.test(verb)) {
+      const status = await loadStatus(db, command.team_id).catch(() => null);
+      if (!status) return respond({ response_type: "ephemeral", text: "I'm not set up yet — `/invite @shutter` to a channel first." });
+      return productStatus(status, verb, respond);
+    }
+
+    switch (verb.toLowerCase()) {
+      case "status":
+        return statusCommand(db, command.team_id, args, respond);
+
+      case "daily":
+        return dailyCommand(db, client, log, command.team_id, respond);
+
       case "help":
         return respond({ response_type: "ephemeral", text: HELP });
 

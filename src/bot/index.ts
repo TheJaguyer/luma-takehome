@@ -10,6 +10,7 @@ import { registerCommands } from "./commands.js";
 import { registerIdeas } from "./ideas.js";
 import { registerImports } from "./imports.js";
 import { registerSetup } from "./setup.js";
+import { registerStatus } from "./status.js";
 
 const config = loadConfig({
   SLACK_BOT_TOKEN: z.string().startsWith("xoxb-"),
@@ -33,6 +34,7 @@ const app = new App({
 registerSetup({ app, db, log, publicBaseUrl: config.PUBLIC_BASE_URL });
 registerImports({ app, db, log });
 registerIdeas({ app, db, log });
+registerStatus({ app, db });
 registerCandidates({ app, db, log, s3, bucket: config.S3_BUCKET, publicBaseUrl: config.PUBLIC_BASE_URL });
 registerCommands({ app, db, log, s3, bucket: config.S3_BUCKET, socketMode, publicBaseUrl: config.PUBLIC_BASE_URL });
 

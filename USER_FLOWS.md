@@ -1643,6 +1643,14 @@ failed once. So the drop tells its own story:
      💰  $6.41 so far
 ```
 
+> **[settled — build step 8] "Daily" means 9am in the approver's Slack timezone**, read from their
+> Slack profile, so there is no setting to ask about (Flow 0's rule). With approvers in several
+> timezones, the first approver's wins. The same run posts the nudge (Step 6), so the channel gets
+> at most one morning's worth of automatic messages, and nothing at all when nothing changed.
+> `/shots daily` runs it on demand — the 9am post can't be waited for in a demo — and counts as that
+> day's run, so it can't double-post. *(Rejected: a fixed time in server config — explicit, but
+> invisible to the team, and silently wrong if the team isn't where the config assumes.)*
+
 **Why this does not become noise:** drops happen a handful of times a year (#2b), so "daily
 while a drop is open" is a few posts, a few times a year — and **nothing at all in between**.
 The automatic reporting is bounded by the drop's own lifetime, which is what stops it growing

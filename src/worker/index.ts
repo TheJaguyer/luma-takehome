@@ -9,6 +9,7 @@ import { createStorage } from "../lib/storage.js";
 import { createIdeas, draftPending, openDrops, postCards } from "./drafting.js";
 import { failInterruptedSubmissions, finishRounds, pollSubmitted, postReadyRounds, submitPending } from "./generation.js";
 import { processImports } from "./imports.js";
+import { scheduleTick } from "./schedule.js";
 
 // Exactly one replica (compose.yaml). Each loop is reconciliation: every tick selects rows not in a
 // terminal state and advances them, so a restart loses nothing. Two loops run side by side so a
@@ -45,7 +46,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   });
 }
 
-async function loop(name: string, steps: Record<string, () => Promise<unknown>>) {
+async function loop(name: string, steps: Record<string, () => Promise<unknown>>, tickMs = TICK_MS) {
   while (!stopping) {
     // Steps run in sequence and each catches its own failure, so one bad row cannot stall the rest.
     for (const [step, run] of Object.entries(steps)) {
@@ -55,7 +56,7 @@ async function loop(name: string, steps: Record<string, () => Promise<unknown>>)
         log.error({ err, loop: name, step }, "step failed");
       }
     }
-    await new Promise((r) => setTimeout(r, TICK_MS));
+    await new Promise((r) => setTimeout(r, tickMs));
   }
 }
 
@@ -70,6 +71,8 @@ await Promise.all([
     openDrops: () => openDrops(drafting),
     postCards: () => postCards(drafting),
   }),
+  // Drop completion, the daily post and nudges: a minute's resolution is plenty.
+  loop("schedule", { scheduleTick: () => scheduleTick({ db, web, log }) }, 60_000),
   loop("generation", {
     submitPending: () => submitPending(generation),
     pollSubmitted: () => pollSubmitted(generation),
