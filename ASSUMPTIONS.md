@@ -326,6 +326,16 @@ Format for each entry:
     is something to compare against — or spend surprising someone, which the visible figures would
     show first.
 
+#### 13a. Luma's pay-as-you-go concurrency limit (10 generations at once) is enough for this team
+- **Assumption:** Pay-as-you-go Luma is the right plan, even though it caps an account at **10 generations in flight**. We queue past the cap rather than buy more capacity.
+- **Why:** Found in the build, not guessed: approving a burst of ideas exceeded the cap and whole rounds failed until submission waited for free slots. At ~65s per image, 10 slots is **~9 images a minute**, so a 40-product drop approved in one sitting (160 candidates) takes **~18 minutes** to generate in full, where one product on its own is back in about a minute. Drops happen a handful of times a year (#2b), idea review itself takes a while, and the queue drains in order, so the early approvals come back first and review keeps pace with it. Luma's Provisioned Throughput is a monthly commitment (8 units minimum, from roughly $2,100 per unit per month) that buys speed nobody here has asked for.
+- **What it changed:**
+  - Candidates wait in our database (`PENDING`) and are submitted only into free slots, oldest approval first, whole rounds together. A busy response from Luma is a wait, never a failure.
+  - `LUMA_MAX_CONCURRENT` (default 10) is the one setting that holds the cap, so a bigger plan is a configuration change, not a refactor.
+  - A round that still comes back short offers **Retry N missing**, and `/shots retry` covers several at once with the cost shown first.
+  - **Cost:** during a big approval session, later products take noticeably longer than "about a minute", and the single worker is what enforces the cap — a second worker would double-count free slots until pg-boss coordinates them (REQUIREMENTS, *Why there is no queue on the day*).
+  - **Out of scope / future: a higher-capacity Luma plan** (Provisioned Throughput or a raised concurrency tier). **Trigger:** the wait becoming friction — approvals sitting in `PENDING` long enough that an approver finishes reviewing ideas and is left waiting on images, or someone asking why candidates are slow during a drop. Recorded in REQUIREMENTS Part 4.
+
 ### 14. What counts as "matching the shot idea", and how faithful must the product be (exact color, exact shape)?
 - **Assumption:** The product must be **faithful**: same shape, color, finish, and proportions as the source photo. Only the scene changes. **Ellie's (or a force-approver's) approval is the definition of "matches."** No automated quality screening.
 - **Why:** Color and finish are how this brand differentiates products ("Sage" vs. "Forest", "Clay Pink" vs. "Terracotta"). A styled image that misrepresents the product causes returns and erodes trust. The person who knows the products best is the most reliable judge, and nothing automatic can wrongly hide a good image.

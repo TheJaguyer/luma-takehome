@@ -103,6 +103,7 @@ model Drop {
   error            String?     // FAILED: why, in words the channel was shown
   summaryChannelId String?     @map("summary_channel_id")
   summaryTs        String?     @map("summary_ts")
+  queueTs          String?     @map("queue_ts") // Flow 2, Step 1: the "N ideas ready" message
   lastDailyPostAt  DateTime?   @map("last_daily_post_at")
   lastProgressAt   DateTime    @default(now()) @map("last_progress_at")
   completedAt      DateTime?   @map("completed_at")
@@ -225,6 +226,12 @@ model Idea {
   decidedAt        DateTime?  @map("decided_at")
   forced           Boolean    @default(false)
   forceReason      String?    @map("force_reason")
+  // Drafting (Flow 1, Step 7). A reconciliation row like Candidate: DRAFTING ideas are retried.
+  draftAttempts    Int        @default(0) @map("draft_attempts")
+  draftError       String?    @map("draft_error")
+  draftModel       String?    @map("draft_model")
+  draftCostUsd     Decimal?   @map("draft_cost_usd") @db.Decimal(10, 5) // #13: drafting spend counts too
+  draftedAt        DateTime?  @map("drafted_at")
   // The card (Flow 2, Step 3) — collapses in place once decided.
   cardChannelId    String?    @map("card_channel_id")
   cardTs           String?    @map("card_ts")
@@ -237,6 +244,7 @@ model Idea {
   approvedOption IdeaOption?  @relation("ApprovedOption", fields: [approvedOptionId], references: [id])
   rounds         Round[]
 
+  @@unique([dropId, productId]) // one drafted idea per product per drop: drafting is idempotent
   @@index([teamId, state])
   @@map("ideas")
 }
@@ -249,6 +257,7 @@ enum IdeaMode {
 
 enum IdeaState {
   DRAFTING
+  DRAFT_FAILED // retries exhausted; shown in the queue message, never silently dropped
   AWAITING_REVIEW
   APPROVED
   SKIPPED
@@ -260,7 +269,7 @@ model IdeaOption {
   ideaId     String @map("idea_id")
   position   Int    // 1–3
   headline   String // the one line chosen between on a phone
-  prompt     String // the full structured scene (#9)
+  prompt     String // the full scene (#9) — surroundings only; product preservation is added at generation
 
   idea       Idea  @relation("IdeaOptions", fields: [ideaId], references: [id])
   approvedIn Idea? @relation("ApprovedOption")
@@ -285,8 +294,10 @@ model Round {
   rejectedBy       String?    @map("rejected_by") // [None of these] — per round, never per image
   rejectedAt       DateTime?  @map("rejected_at")
   contactSheetKey  String?    @map("contact_sheet_key")
+  // The product's one message (usually its idea card), updated in place at every stage.
   messageChannelId String?    @map("message_channel_id")
   messageTs        String?    @map("message_ts")
+  postedAt         DateTime?  @map("posted_at") // candidates shown for this attempt; cleared by a retry
   createdAt        DateTime   @default(now()) @map("created_at")
   completedAt      DateTime?  @map("completed_at")
 

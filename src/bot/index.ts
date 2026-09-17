@@ -1,10 +1,12 @@
 import { App, LogLevel } from "@slack/bolt";
 import { z } from "zod";
+import { retryMissing, roundsWithMissing } from "../core/roundRetry.js";
 import { loadConfig } from "../lib/config.js";
 import { createDb } from "../lib/db.js";
 import { createLogger } from "../lib/log.js";
 import { createStorage } from "../lib/storage.js";
 import { registerCommands } from "./commands.js";
+import { registerIdeas } from "./ideas.js";
 import { registerImports } from "./imports.js";
 import { registerSetup } from "./setup.js";
 
@@ -29,6 +31,7 @@ const app = new App({
 
 registerSetup({ app, db, log, publicBaseUrl: config.PUBLIC_BASE_URL });
 registerImports({ app, db, log });
+registerIdeas({ app, db, log });
 registerCommands({ app, db, log, s3, bucket: config.S3_BUCKET, socketMode });
 
 // Buttons on the candidate message. The full-size view and approval land in build step 6; until
@@ -40,6 +43,22 @@ app.action(/^candidate_open_\d$|^round_reject$/, async ({ ack, respond }) => {
     replace_original: false,
     text: "Reviewing candidates isn't wired up yet (build step 6).",
   });
+});
+
+app.action("round_retry_missing", async ({ ack, body, client, respond }) => {
+  await ack();
+  const b = body as { user: { id: string }; actions: { value: string }[] };
+  const { retried } = await retryMissing(db, client, b.actions[0]!.value, b.user.id);
+  if (retried === 0) await respond({ response_type: "ephemeral", replace_original: false, text: "That round is already being retried." });
+});
+
+app.action("rounds_retry_all", async ({ ack, body, client, respond }) => {
+  await ack();
+  const b = body as { user: { id: string }; team?: { id: string } };
+  const { rounds } = await roundsWithMissing(db, b.team!.id);
+  let total = 0;
+  for (const round of rounds) total += (await retryMissing(db, client, round.id, b.user.id)).retried;
+  await respond({ response_type: "ephemeral", replace_original: true, text: `🔁  Retrying ${total} candidates across ${rounds.length} rounds. They'll go to Luma as slots free up.` });
 });
 
 app.error(async (err) => {

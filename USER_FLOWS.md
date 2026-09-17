@@ -1086,10 +1086,27 @@ last idea is approved, most of the first products' candidates are already waitin
 not "review all ideas, then wait, then review all images"; the two overlap, in one channel, by
 design (#2b).
 
-**Candidates arrive as a new message, not an edit of the idea card.** A silently updated
+~~**Candidates arrive as a new message, not an edit of the idea card.** A silently updated
 message does not notify anyone, and an image waiting for a decision that nobody is told about
 is the stuck state #5a warns of. The new message links back to the idea card, so the thread of
-discussion stays findable.
+discussion stays findable.~~
+
+> **[revised — build step 5] One product is one message, and it changes in place through every
+> stage.** The idea card collapses to "✅ generating 4 candidates" when approved (Flow 2), becomes
+> the contact sheet when the candidates are back, becomes "🔁 retrying" and then the full sheet
+> again if some are retried, and collapses to its approved line once decided (Step 3). The channel
+> reads as a list of products each moving toward "approved", rather than a growing pile of
+> messages about the same SKU — and the card's thread, with every comment on that product, stays
+> attached the whole way.
+>
+> **What it costs — the original reasoning above still holds:** an edited message notifies nobody,
+> so candidates arriving are silent. Three things carry that instead: the queue is worked in one
+> sitting during a drop (#2b), so the person approving is usually watching the cards change;
+> anything left waiting appears in the stuck list and nudges (Flow 4), which #5a already made a
+> dependency; and the drop's daily post counts what is awaiting a decision. **Signal that this was
+> wrong:** candidates sitting undecided long enough to reach the stuck list while the approver was
+> active in the channel — that means the edit went unseen, and a thread reply ("candidates are
+> back") on the card is the first fix, since it notifies without adding a channel message.
 
 ## Step 2 — The candidate message
 
@@ -1341,7 +1358,8 @@ is the one place there where not testing is costing something concrete rather th
 
 | What happens | System response |
 |---|---|
-| A generation fails or is moderated | Refunded. The message says how many came back and offers to retry the missing ones; three candidates is still a decision worth making. |
+| A generation fails or is moderated | Refunded. The message says how many came back and offers **[Retry N missing]**; three candidates is still a decision worth making. Retrying re-queues only the failed candidates of the same round and updates the same message in place. `/shots retry` retries several rounds at once, with the cost shown first. |
+| Luma's concurrency limit is reached (10 in flight, #13a) | Not a failure: candidates wait in the queue and are submitted as slots free up, oldest approval first. |
 | All four fail | Post the failure rather than silence. Silence looks identical to "still generating". |
 | Luma is slow or down | The message stays in "generating"; a product stuck there past a threshold appears in the stuck list (#5). |
 | Nothing useful to say in the "what should be different" box | `[Try a different idea]` costs no typing and is usually the better answer when a whole round misses. |

@@ -11,18 +11,19 @@ import { Prisma } from "../generated/prisma/client.js";
 import { buildContactSheet } from "../lib/contactSheet.js";
 import { EDIT_PRICE_USD, LumaError, RETRYABLE_FAILURES, type Luma, type Source } from "../lib/luma.js";
 import { buildEditPrompt } from "../lib/prompts.js";
-import { postWithFreshFile, uploadImage, usd } from "../lib/slack.js";
+import { uploadImage, usd, withFreshFile } from "../lib/slack.js";
 import { getObjectBytes, keys, putObject } from "../lib/storage.js";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { WebClient } from "@slack/web-api";
 import type { Logger } from "pino";
 
-type Deps = { db: Db; luma: Luma; s3: S3Client; bucket: string; web: WebClient; log: Logger };
+type Deps = { db: Db; luma: Luma; s3: S3Client; bucket: string; web: WebClient; log: Logger; maxConcurrent: number };
 
 const FIRST_POLL_MS = 20_000; // uni-1 p50 is ~30s: earlier polls are wasted
 const POLL_MS = 5_000;
 const DEADLINE_MS = 10 * 60_000;
-const MAX_SUBMIT_ATTEMPTS = 5; // rate-limit retries before giving up
+const MAX_SUBMIT_ATTEMPTS = 5; // Luma-side errors (5xx) before giving up; waiting for a slot never counts
+const BUSY_WAIT_MS = 15_000;
 const MAX_ASYNC_RETRIES = 1; // one resubmission for a retryable async failure
 
 const later = (ms: number) => new Date(Date.now() + ms);
@@ -41,13 +42,21 @@ export async function failInterruptedSubmissions({ db, log }: Deps) {
   if (count > 0) log.warn({ count }, "failed interrupted submissions");
 }
 
+/**
+ * Submits only into free slots. Luma caps concurrent generations per account (10 on ours), and a
+ * request over the cap is rejected — so the queue lives here, in PENDING rows, not at Luma. Oldest
+ * rounds first, whole rounds together, so an early approval isn't starved by later ones.
+ */
 export async function submitPending(deps: Deps) {
   const { db, luma, s3, bucket, log } = deps;
+  const inFlight = await db.candidate.count({ where: { state: { in: ["SUBMITTING", "SUBMITTED"] } } });
+  const slots = deps.maxConcurrent - inFlight;
+  if (slots <= 0) return;
   const due = await db.candidate.findMany({
     where: { state: "PENDING", nextPollAt: { lte: new Date() } },
     include: { round: { include: { idea: true, product: true, sourcePhoto: true } } },
-    orderBy: { nextPollAt: "asc" },
-    take: 8,
+    orderBy: [{ round: { createdAt: "asc" } }, { position: "asc" }],
+    take: slots,
   });
 
   await Promise.all(
@@ -91,7 +100,14 @@ export async function submitPending(deps: Deps) {
         });
         log.info({ candidate: candidate.id, luma: generation.id, sku: round.product.sku }, "submitted");
       } catch (err) {
-        if (err instanceof LumaError && err.retryable && candidate.attempts + 1 < MAX_SUBMIT_ATTEMPTS) {
+        if (err instanceof LumaError && err.status === 429) {
+          // Busy, not broken: nothing was created, so wait for a slot without using an attempt.
+          await db.candidate.update({
+            where: { id: candidate.id },
+            data: { state: "PENDING", nextPollAt: later(err.retryAfter ? err.retryAfter * 1000 : BUSY_WAIT_MS) },
+          });
+          log.info({ candidate: candidate.id, detail: err.detail }, "Luma busy; waiting for a slot");
+        } else if (err instanceof LumaError && err.retryable && candidate.attempts + 1 < MAX_SUBMIT_ATTEMPTS) {
           // Rejected before anything was created, so going back to PENDING is safe.
           await db.candidate.update({
             where: { id: candidate.id },
@@ -258,14 +274,15 @@ export async function finishRounds(deps: Deps) {
 }
 
 /**
- * Posts rounds that are ready but have no message yet. Kept apart from finishRounds so a Slack
- * outage delays the post rather than losing it; the cost is a possible duplicate message if the
- * process dies between posting and saving the timestamp.
+ * Shows rounds whose candidates are back. One product is one message (Flow 3, Step 1, revised):
+ * the round replaces its idea card in place — or its own earlier message, after a retry — and only
+ * a round with neither gets a new message. Kept apart from finishRounds so a Slack outage delays
+ * the update rather than losing it.
  */
 export async function postReadyRounds(deps: Deps) {
   const { db, s3, bucket, web, log } = deps;
   const rounds = await db.round.findMany({
-    where: { state: "AWAITING_DECISION", messageTs: null },
+    where: { state: "AWAITING_DECISION", postedAt: null },
     include: {
       candidates: { orderBy: { position: "asc" } },
       product: true,
@@ -283,6 +300,7 @@ export async function postReadyRounds(deps: Deps) {
 
     const { product, idea } = round;
     const succeeded = round.candidates.filter((c) => c.state === "SUCCEEDED");
+    const missing = round.candidates.length - succeeded.length;
     const cost = round.candidates.reduce((sum, c) => sum + Number(c.costUsd ?? 0), 0);
     const title = [product.sku, product.name, product.color].filter(Boolean).join(" · ");
     const ideaName = idea.approvedOption?.headline ?? idea.approvedPrompt?.slice(0, 60) ?? "—";
@@ -309,6 +327,7 @@ export async function postReadyRounds(deps: Deps) {
               value: c.id,
             })),
             { type: "button", action_id: "round_reject", text: { type: "plain_text", text: "None of these" }, value: round.id },
+            ...(missing > 0 ? [retryButton(round.id, missing)] : []),
           ],
         },
       ];
@@ -317,21 +336,46 @@ export async function postReadyRounds(deps: Deps) {
       const reasons = [...new Set(round.candidates.map((c) => c.error).filter(Boolean))].join("; ");
       blocks = [
         { type: "section", text: { type: "mrkdwn", text: `${summary}\n\n⚠️  None of the ${round.candidates.length} candidates generated. ${reasons}` } },
+        { type: "actions", elements: [retryButton(round.id, missing)] },
       ];
     }
 
-    const message = await postWithFreshFile(web, {
-      channel: install.channelId,
-      text: `${product.sku}: ${succeeded.length} candidates ready for review`,
-      blocks: blocks as never,
-      unfurl_links: false,
-    });
+    const text = `${product.sku}: ${succeeded.length} candidates ready for review`;
+    const target =
+      round.messageChannelId && round.messageTs
+        ? { channel: round.messageChannelId, ts: round.messageTs }
+        : idea.cardChannelId && idea.cardTs
+          ? { channel: idea.cardChannelId, ts: idea.cardTs }
+          : null;
+
+    let channel: string;
+    let ts: string | null;
+    if (target) {
+      await withFreshFile(() => web.chat.update({ ...target, text, blocks: blocks as never }));
+      ({ channel, ts } = target);
+    } else {
+      const message = await withFreshFile(() =>
+        web.chat.postMessage({ channel: install.channelId!, text, blocks: blocks as never, unfurl_links: false }),
+      );
+      channel = message.channel ?? install.channelId;
+      ts = message.ts ?? null;
+    }
     await db.round.update({
       where: { id: round.id },
-      data: { messageChannelId: message.channel ?? install.channelId, messageTs: message.ts ?? null },
+      data: { messageChannelId: channel, messageTs: ts, postedAt: new Date() },
     });
-    log.info({ round: round.id, ts: message.ts }, "round posted");
+    log.info({ round: round.id, ts, inPlace: Boolean(target) }, "round shown");
   }
+}
+
+/** Flow 3, Branches: a round that came back short offers to retry the missing ones. */
+function retryButton(roundId: string, missing: number) {
+  return {
+    type: "button",
+    action_id: "round_retry_missing",
+    text: { type: "plain_text", text: `Retry ${missing} missing` },
+    value: roundId,
+  };
 }
 
 export type GenerationDeps = Deps;

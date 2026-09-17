@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { loadConfig } from "../lib/config.js";
 import { createDb } from "../lib/db.js";
@@ -5,66 +6,77 @@ import { createLogger } from "../lib/log.js";
 import { createLuma } from "../lib/luma.js";
 import { createSlack } from "../lib/slack.js";
 import { createStorage } from "../lib/storage.js";
-import {
-  failInterruptedSubmissions,
-  finishRounds,
-  pollSubmitted,
-  postReadyRounds,
-  submitPending,
-  type GenerationDeps,
-} from "./generation.js";
+import { createIdeas, draftPending, openDrops, postCards } from "./drafting.js";
+import { failInterruptedSubmissions, finishRounds, pollSubmitted, postReadyRounds, submitPending } from "./generation.js";
 import { processImports } from "./imports.js";
 
-// Exactly one replica (compose.yaml). The reconciliation loop is the durability: every tick
-// selects rows not in a terminal state and advances them, so a restart loses nothing. The tick is
-// short because each step only touches rows that are due (Candidate.nextPollAt).
+// Exactly one replica (compose.yaml). Each loop is reconciliation: every tick selects rows not in a
+// terminal state and advances them, so a restart loses nothing. Two loops run side by side so a
+// batch of slow Claude drafts never delays polling Luma, and vice versa.
 const config = loadConfig({
   SLACK_BOT_TOKEN: z.string().startsWith("xoxb-"),
   LUMA_AGENTS_API_KEY: z.string().min(1),
+  ANTHROPIC_API_KEY: z.string().min(1),
+  // Luma's per-account cap on generations in flight; over it, submissions are rejected with a 429.
+  LUMA_MAX_CONCURRENT: z.coerce.number().int().positive().default(10),
 });
 const log = createLogger("worker");
 const db = createDb(config.DATABASE_URL);
+const web = createSlack(config.SLACK_BOT_TOKEN, log);
+const s3 = createStorage(config);
 
-const deps: GenerationDeps = {
+const generation = {
   db,
   log,
-  luma: createLuma(config.LUMA_AGENTS_API_KEY),
-  s3: createStorage(config),
+  web,
+  s3,
   bucket: config.S3_BUCKET,
-  web: createSlack(config.SLACK_BOT_TOKEN, log),
+  luma: createLuma(config.LUMA_AGENTS_API_KEY),
+  maxConcurrent: config.LUMA_MAX_CONCURRENT,
 };
+const drafting = { db, log, web, claude: new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }) };
+const imports = { db, log, web, s3, bucket: config.S3_BUCKET, slackToken: config.SLACK_BOT_TOKEN };
 
 const TICK_MS = 3_000;
-const importDeps = { ...deps, slackToken: config.SLACK_BOT_TOKEN };
-const steps = {
-  processImports: () => processImports(importDeps),
-  submitPending: () => submitPending(deps),
-  pollSubmitted: () => pollSubmitted(deps),
-  finishRounds: () => finishRounds(deps),
-  postReadyRounds: () => postReadyRounds(deps),
-};
 let stopping = false;
-
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     stopping = true;
   });
 }
 
-await failInterruptedSubmissions(deps);
+async function loop(name: string, steps: Record<string, () => Promise<unknown>>) {
+  while (!stopping) {
+    // Steps run in sequence and each catches its own failure, so one bad row cannot stall the rest.
+    for (const [step, run] of Object.entries(steps)) {
+      try {
+        await run();
+      } catch (err) {
+        log.error({ err, loop: name, step }, "step failed");
+      }
+    }
+    await new Promise((r) => setTimeout(r, TICK_MS));
+  }
+}
+
+await failInterruptedSubmissions(generation);
 log.info({ tickMs: TICK_MS }, "worker started");
 
-while (!stopping) {
-  // Steps run in sequence and each catches its own failure, so one bad row cannot stall the rest.
-  for (const [name, step] of Object.entries(steps)) {
-    try {
-      await step();
-    } catch (err) {
-      log.error({ err, step: name }, "step failed");
-    }
-  }
-  await new Promise((r) => setTimeout(r, TICK_MS));
-}
+await Promise.all([
+  loop("ideas", {
+    processImports: () => processImports(imports),
+    createIdeas: () => createIdeas(drafting),
+    draftPending: () => draftPending(drafting),
+    openDrops: () => openDrops(drafting),
+    postCards: () => postCards(drafting),
+  }),
+  loop("generation", {
+    submitPending: () => submitPending(generation),
+    pollSubmitted: () => pollSubmitted(generation),
+    finishRounds: () => finishRounds(generation),
+    postReadyRounds: () => postReadyRounds(generation),
+  }),
+]);
 
 await db.$disconnect();
 log.info("worker stopped");

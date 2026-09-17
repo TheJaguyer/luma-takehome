@@ -2,6 +2,7 @@
 // drop's stored report, so the worker (first post) and the bot (rename, theme answered) render it
 // identically.
 import type { KnownBlock } from "@slack/types";
+import { DRAFT_ESTIMATE_PER_PRODUCT_USD } from "./drafting.js";
 
 export type ImportReport = {
   rowCount: number;
@@ -36,8 +37,8 @@ const listSkus = (skus: string[], max = 10) =>
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** About $0.0005 per product for three drafted options (#13) — shown so "free" is never implied. */
-const draftingCost = (n: number) => Math.max(0.01, n * 0.0005);
+/** Shown so "free" is never implied (#13). */
+const draftingCost = (n: number) => Math.max(0.01, n * DRAFT_ESTIMATE_PER_PRODUCT_USD);
 
 export function importSummaryBlocks({ drop, report, themeName, themes }: SummaryInput): KnownBlock[] {
   const lines: string[] = [];
@@ -93,7 +94,7 @@ export function importSummaryBlocks({ drop, report, themeName, themes }: Summary
       elements: [
         {
           type: "mrkdwn",
-          text: `🎨 Campaign: ${theme} — chosen by <@${drop.themeAnsweredBy}>. Ideas for ${plural(report.toDraft, "product")} are queued for drafting.`,
+          text: `🎨 Campaign: ${theme} — chosen by <@${drop.themeAnsweredBy}>. Ideas for ${plural(report.toDraft, "product")} are being drafted.`,
         },
       ],
     });

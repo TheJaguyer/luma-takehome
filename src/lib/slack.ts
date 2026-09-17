@@ -41,13 +41,13 @@ export async function uploadImage(web: WebClient, bytes: Buffer, filename: strin
 }
 
 /**
- * chat.postMessage, retried while Slack is still processing a just-uploaded file — an image
- * block referencing it fails with invalid_blocks for a few seconds.
+ * Runs a Slack call that shows a just-uploaded file, retrying while Slack is still processing it —
+ * an image block referencing it fails with invalid_blocks for a few seconds.
  */
-export async function postWithFreshFile(web: WebClient, args: Parameters<WebClient["chat"]["postMessage"]>[0]) {
+export async function withFreshFile<T>(call: () => Promise<T>): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await web.chat.postMessage(args);
+      return await call();
     } catch (err) {
       const code = (err as { data?: { error?: string } }).data?.error;
       if (code !== "invalid_blocks" || attempt >= 8) throw err;

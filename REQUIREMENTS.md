@@ -80,6 +80,14 @@
   Output 2048×2048 from a square source (#15 holds). Cost **$0.0434 per image, $0.17 per round**
   at list price; all four were usable, so per *approved* image the figure depends on approval
   rate, which only real review will show. Keep the box open until a few more rounds have run.
+  **Second data point (build step 5): Luma caps an account at 10 generations in flight.** A burst
+  of approvals exceeded it and whole rounds failed until submission was throttled to free slots.
+  At ~65s per image, **10 slots is ~9 images a minute — a 40-product drop (160 candidates) takes
+  ~18 minutes to generate in full**, not "about a minute" per product once many are approved
+  together. Worth saying in APPROACH.md's *what breaks first*; the fix at 10× is Luma's
+  Provisioned Throughput or a higher concurrency tier, and `LUMA_MAX_CONCURRENT` is the one
+  setting that changes.
+  **Drafting (Claude Sonnet 5): $0.005–0.007 and 6–9s per product** with the shared prefix cached.
 
 ## Who we're building for
 
@@ -301,6 +309,7 @@ answer is available rather than remembered.
 | **Capturing a shot idea from an ordinary Slack message** | Most lost ideas were for products that now get drafted options anyway, and the sheet's Shot Idea column still reaches the system on the next import (Flow 2) | An idea appearing in a card's thread and never becoming an option — the thread is the place to look, and it is already attached to the product |
 | **Request approved images from the bot** (`/shots images HG-002`, or a whole drop) | Drive's actual job without Drive. Needs no new data: every image already has a stable URL and an origin | Anyone asking in the channel where to get files for social — the brief's "which files are final?" question resurfacing in a new place |
 | **Web-based data view** — read-only site over the audit trail and spend data | Beyond a one-day build. Not the dashboard this team abandoned: that asked people to go somewhere to *do their work*; this is somewhere to look something up when something is wrong | A question the CSV export cannot answer without a spreadsheet session — repeated "who approved this, and why" requests |
+| **Higher-capacity Luma plan** — Provisioned Throughput or a raised concurrency tier, past pay-as-you-go's 10 generations in flight (#13a) | Queuing past the cap is enough at a handful of drops a year: a full 40-product drop generates in ~18 minutes, in approval order. Provisioned Throughput is a monthly commitment for speed nobody has asked for. `LUMA_MAX_CONCURRENT` makes the switch a configuration change | **The wait becoming friction** — an approver finishing idea review and then waiting on candidates still `PENDING`, or anyone asking why images are slow during a drop |
 | **Storefront platform connector** (Shopify etc.) | Platform unknown; the per-SKU lookup covers it once integrated (#4a) | The team names their platform, or it turns out to need uploaded assets rather than external URLs |
 | **Image resizing / thumbnails** | The full-size approved image is enough to start (#4a) | The web developer asking for smaller variants, or page weight becoming a complaint |
 | **Scheduled seasonal swaps** — *us* deciding when a season starts | Mostly dissolved: the site asks for a theme and owns the calendar (#4b, Flow 7), so there is no scheduler, nothing to expire, and no SKU left short | The web developer asking for the lookup to switch itself — i.e. wanting us to own the calendar after all |
