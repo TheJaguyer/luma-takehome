@@ -8,7 +8,7 @@
 - **The Part 5 build is complete** — the spine plus both deliberate additions — committed through
   `8db348a`. Every step was tested by hand in Slack, locally and on EC2.
 - **28 unit tests** (`pnpm test`), all passing; `pnpm typecheck` clean.
-- **Deploy:** `deploy/local.sh [--reset-catalog]` locally; `deploy/push.sh ubuntu@<ip> [--reset-catalog]`
+- **Deploy:** `deploy/local.sh [--reset-catalog|--reset-factory]` locally; `deploy/push.sh ubuntu@<ip> [--reset-catalog|--reset-factory]`
   to EC2 (types the host before a reset). Two Slack apps: dev (Socket Mode) and prod (HTTP).
 - **Cheap test data:** `data/samples/short.csv` (5 products: 2 with sheet ideas, 3 without — about
   $0.90 for a full pass), `data/samples/catalog-edge-cases.csv` (one of every import problem).
@@ -44,7 +44,7 @@ where the docs now lag what was built. Each is a user call.
 | Default | Where | Alternative |
 |---|---|---|
 | Edit lives under **More…** (*Edit 1/2/3…*), not an `[Edit…]` button | Step 5, idea cards | A separate Edit button that asks which option |
-| `--reset-catalog` also clears **themes** and the **event log** | `src/scripts/reset-catalog.ts` | Keep themes as reusable chips; keep the audit trail |
+| `--reset-catalog` also clears **themes** and the **event log** | `src/scripts/reset.ts` | Keep themes as reusable chips; keep the audit trail |
 | Export column details: sheet headers first, approver **display name**, formula cells escaped | Step 7 | Slack IDs; no escaping |
 | `STUCK_AFTER_MINUTES` for demos; a drop **goes quiet** after the stuck threshold (3 days) | Step 8 | A separate quiet threshold |
 | **Generate more** asks a non-approver for a reason too (on top of the feedback sentence) | Step 6 | Feedback sentence alone for everyone |
@@ -84,7 +84,7 @@ is decided; each is the user's call.
   one tap for a routine re-import.
 - `[Show details]` posts into the thread each time it's tapped (no dedupe).
 - Drop name from a junk filename is "Import of <date>" — check it reads well with `[Rename]`.
-- After `--reset-catalog`, old Slack messages keep buttons that point at deleted rows (they do
+- After either reset, old Slack messages keep buttons that point at deleted rows (they do
   nothing and log an error).
 
 **Flow 2 — Idea review**
