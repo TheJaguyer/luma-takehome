@@ -1202,7 +1202,19 @@ rather than leaving them implicit:
 ```
 
 The notice exists because approval now reaches the site with nobody in between (#4). One tap
-puts it back. This is the direct answer to the brief's "wrong file was live for three weeks" —
+puts it back.
+
+> **[settled — build step 6] Where the notice goes, now that a product is one message:** a reply in
+> that message's thread, **also sent to the channel**. It is the one stage that deliberately
+> notifies — a live change is exactly what someone should hear about — while its history stays
+> attached to the product. Reverting is itself a live change: it follows the approval rule (one
+> tap for an approver, a reason from anyone else) and posts its own notice **in the thread only**
+> — the product's message already shows the corrected state, and the person who reverted is the
+> one who needed to know. *(Revised after first use: reverts were sent to the channel too.)*
+> *(Rejected: thread only — quieter, but a wrong image going live would be announced only to
+> whoever opens the thread, which weakens #4's answer to "wrong file live for three weeks".
+> Rejected: in place on the message — tidiest, but notifies no one, and the revert would vanish
+> as soon as the message moved on to its next stage.)* This is the direct answer to the brief's "wrong file was live for three weeks" —
 not that mistakes stop happening, but that they are announced and reversible in a gesture.
 
 When the second image lands:

@@ -69,6 +69,8 @@ export type DraftInput = {
     notes: string | null;
     sheetShotIdea: string | null;
   };
+  /** "Try a different idea": the scene that was set aside, so the redraft moves away from it. */
+  supersedes?: string | null;
 };
 
 export type DraftResult = {
@@ -101,6 +103,8 @@ export function buildDraftRequest(input: DraftInput) {
     p.price && `Price: ${p.price}`,
     p.notes && `Team notes: "${p.notes}"`,
     p.sheetShotIdea ? `Sheet idea: "${p.sheetShotIdea}"` : "Sheet idea: none",
+    input.supersedes &&
+      `An earlier idea for this product didn't work out and was set aside. Write three options that are clearly different from it:\n"${input.supersedes}"`,
   ].filter(Boolean);
 
   return {

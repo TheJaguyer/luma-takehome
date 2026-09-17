@@ -5,6 +5,7 @@ import { loadConfig } from "../lib/config.js";
 import { createDb } from "../lib/db.js";
 import { createLogger } from "../lib/log.js";
 import { createStorage } from "../lib/storage.js";
+import { registerCandidates } from "./candidates.js";
 import { registerCommands } from "./commands.js";
 import { registerIdeas } from "./ideas.js";
 import { registerImports } from "./imports.js";
@@ -32,18 +33,8 @@ const app = new App({
 registerSetup({ app, db, log, publicBaseUrl: config.PUBLIC_BASE_URL });
 registerImports({ app, db, log });
 registerIdeas({ app, db, log });
+registerCandidates({ app, db, log, s3, bucket: config.S3_BUCKET, publicBaseUrl: config.PUBLIC_BASE_URL });
 registerCommands({ app, db, log, s3, bucket: config.S3_BUCKET, socketMode });
-
-// Buttons on the candidate message. The full-size view and approval land in build step 6; until
-// then they acknowledge so Slack doesn't show the tapper an error.
-app.action(/^candidate_open_\d$|^round_reject$/, async ({ ack, respond }) => {
-  await ack();
-  await respond({
-    response_type: "ephemeral",
-    replace_original: false,
-    text: "Reviewing candidates isn't wired up yet (build step 6).",
-  });
-});
 
 app.action("round_retry_missing", async ({ ack, body, client, respond }) => {
   await ack();

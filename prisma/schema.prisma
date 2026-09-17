@@ -214,6 +214,7 @@ model Idea {
   mode             IdeaMode
   state            IdeaState  @default(DRAFTING)
   rawSheetIdea     String?    @map("raw_sheet_idea") // #9 — shown as context
+  supersedes       String?    // "Try a different idea": the prompt that didn't work, so the redraft avoids it
   // What drafting ran against, recorded so history stays truthful when either is edited (#3b).
   houseStyleUsed   String?    @map("house_style_used")
   themeLookUsed    String?    @map("theme_look_used")
@@ -235,6 +236,9 @@ model Idea {
   // The card (Flow 2, Step 3) — collapses in place once decided.
   cardChannelId    String?    @map("card_channel_id")
   cardTs           String?    @map("card_ts")
+  // Shown on the product's message. A replacement idea reuses the old idea's message (one product,
+  // one message), so "has a message" and "is shown" are separate facts, as on Round.
+  cardShownAt      DateTime?  @map("card_shown_at")
   createdAt        DateTime   @default(now()) @map("created_at")
 
   product        Product      @relation(fields: [productId], references: [id])
@@ -244,7 +248,9 @@ model Idea {
   approvedOption IdeaOption?  @relation("ApprovedOption", fields: [approvedOptionId], references: [id])
   rounds         Round[]
 
-  @@unique([dropId, productId]) // one drafted idea per product per drop: drafting is idempotent
+  // Not unique per (drop, product): "Try a different idea" adds a second idea in the same drop.
+  // Drafting stays idempotent by checking for an existing idea before creating one.
+  @@index([dropId, productId])
   @@index([teamId, state])
   @@map("ideas")
 }
@@ -294,6 +300,7 @@ model Round {
   rejectedBy       String?    @map("rejected_by") // [None of these] — per round, never per image
   rejectedAt       DateTime?  @map("rejected_at")
   contactSheetKey  String?    @map("contact_sheet_key")
+  sheetFileId      String?    @map("sheet_file_id") // the sheet uploaded to Slack once, reused on every re-render
   // The product's one message (usually its idea card), updated in place at every stage.
   messageChannelId String?    @map("message_channel_id")
   messageTs        String?    @map("message_ts")
@@ -327,6 +334,7 @@ model Candidate {
   lumaId       String?        @map("luma_id")
   costUsd      Decimal?       @map("cost_usd") @db.Decimal(10, 4) // #13
   storageKey   String?        @map("storage_key")
+  slackFileId  String?        @map("slack_file_id") // uploaded once, for the full-size view
   width        Int?
   height       Int?
   error        String?

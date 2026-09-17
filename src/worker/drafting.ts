@@ -24,9 +24,12 @@ export async function createIdeas({ db, log }: Deps) {
   for (const drop of drops) {
     const install = await db.install.findUniqueOrThrow({ where: { teamId: drop.teamId } });
     const products = await db.dropProduct.findMany({ where: { dropId: drop.id, draftIdea: true }, include: { product: true } });
+    // Idempotent: a product that already has an idea in this drop gets nothing new.
+    const existing = new Set((await db.idea.findMany({ where: { dropId: drop.id }, select: { productId: true } })).map((i) => i.productId));
+    const missing = products.filter(({ product }) => !existing.has(product.id));
+    if (missing.length === 0) continue;
     const { count } = await db.idea.createMany({
-      skipDuplicates: true, // unique (dropId, productId): a retry creates nothing new
-      data: products.map(({ product }) => ({
+      data: missing.map(({ product }) => ({
         teamId: drop.teamId,
         productId: product.id,
         dropId: drop.id,
@@ -57,7 +60,9 @@ export async function draftPending({ db, log, claude }: Deps) {
         const result = await draftIdeaOptions(claude, {
           houseStyle: idea.houseStyleUsed,
           theme: idea.theme ? { name: idea.theme.name, look: idea.themeLookUsed ?? idea.theme.look } : null,
-          product: idea.product,
+          // A redraft is always from product data: re-expanding the same sheet idea would return the same scene.
+          product: { ...idea.product, sheetShotIdea: idea.mode === "EXPAND" ? idea.rawSheetIdea : null },
+          supersedes: idea.supersedes,
         });
         await db.$transaction([
           db.ideaOption.createMany({
@@ -134,7 +139,7 @@ export async function openDrops({ db, web, log }: Deps) {
 
 export async function postCards({ db, web, log }: Deps) {
   const ideas = await db.idea.findMany({
-    where: { state: "AWAITING_REVIEW", cardTs: null, OR: [{ dropId: null }, { drop: { queueTs: { not: null } } }] },
+    where: { state: "AWAITING_REVIEW", cardShownAt: null, OR: [{ dropId: null }, { drop: { queueTs: { not: null } } }] },
     // Priority products first (#7), then by SKU.
     orderBy: [{ product: { priority: "desc" } }, { product: { sku: "asc" } }],
     select: { id: true, teamId: true },
@@ -144,14 +149,18 @@ export async function postCards({ db, web, log }: Deps) {
     const install = await db.install.findUniqueOrThrow({ where: { teamId } });
     const card = await loadCardIdea(db, id);
     if (!card || !install.channelId) continue;
-    const message = await web.chat.postMessage({
-      channel: install.channelId,
-      text: `Idea review: ${productTitle(card.product)}`,
-      blocks: ideaCardBlocks(card),
-      unfurl_links: false,
-      unfurl_media: false,
-    });
-    await db.idea.update({ where: { id }, data: { cardChannelId: message.channel ?? install.channelId, cardTs: message.ts ?? null } });
+    const text = `Idea review: ${productTitle(card.product)}`;
+    let channel = card.cardChannelId;
+    let ts = card.cardTs;
+    if (channel && ts) {
+      // A replacement idea takes over the product's existing message.
+      await web.chat.update({ channel, ts, text, blocks: ideaCardBlocks(card) });
+    } else {
+      const message = await web.chat.postMessage({ channel: install.channelId, text, blocks: ideaCardBlocks(card), unfurl_links: false, unfurl_media: false });
+      channel = message.channel ?? install.channelId;
+      ts = message.ts ?? null;
+    }
+    await db.idea.update({ where: { id }, data: { cardChannelId: channel, cardTs: ts, cardShownAt: new Date() } });
     log.debug({ idea: id }, "idea card posted");
   }
 }

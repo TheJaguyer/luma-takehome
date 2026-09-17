@@ -11,7 +11,8 @@ import { Prisma } from "../generated/prisma/client.js";
 import { buildContactSheet } from "../lib/contactSheet.js";
 import { EDIT_PRICE_USD, LumaError, RETRYABLE_FAILURES, type Luma, type Source } from "../lib/luma.js";
 import { buildEditPrompt } from "../lib/prompts.js";
-import { uploadImage, usd, withFreshFile } from "../lib/slack.js";
+import { loadRoundView, roundMessageBlocks } from "../core/productMessage.js";
+import { uploadImage, withFreshFile } from "../lib/slack.js";
 import { getObjectBytes, keys, putObject } from "../lib/storage.js";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { WebClient } from "@slack/web-api";
@@ -276,18 +277,14 @@ export async function finishRounds(deps: Deps) {
 /**
  * Shows rounds whose candidates are back. One product is one message (Flow 3, Step 1, revised):
  * the round replaces its idea card in place — or its own earlier message, after a retry — and only
- * a round with neither gets a new message. Kept apart from finishRounds so a Slack outage delays
- * the update rather than losing it.
+ * a round with neither gets a new message. Files are uploaded to Slack once (the sheet, and each
+ * candidate for the full-size view) and reused by every later re-render.
  */
 export async function postReadyRounds(deps: Deps) {
   const { db, s3, bucket, web, log } = deps;
   const rounds = await db.round.findMany({
     where: { state: "AWAITING_DECISION", postedAt: null },
-    include: {
-      candidates: { orderBy: { position: "asc" } },
-      product: true,
-      idea: { include: { approvedOption: true } },
-    },
+    include: { candidates: { orderBy: { position: "asc" } }, product: true },
     take: 5,
   });
 
@@ -297,85 +294,36 @@ export async function postReadyRounds(deps: Deps) {
       log.warn({ round: round.id }, "no review channel; cannot post round");
       continue;
     }
+    const sku = round.product.sku;
 
-    const { product, idea } = round;
-    const succeeded = round.candidates.filter((c) => c.state === "SUCCEEDED");
-    const missing = round.candidates.length - succeeded.length;
-    const cost = round.candidates.reduce((sum, c) => sum + Number(c.costUsd ?? 0), 0);
-    const title = [product.sku, product.name, product.color].filter(Boolean).join(" · ");
-    const ideaName = idea.approvedOption?.headline ?? idea.approvedPrompt?.slice(0, 60) ?? "—";
-    const summary =
-      `🖼  *${title}*\n` +
-      `round ${round.number} of ${install.maxRounds} · ${succeeded.length} of ${round.candidates.length} candidates · ${usd(cost)}\n` +
-      `Idea: "${ideaName}"${idea.decidedBy ? ` — approved by <@${idea.decidedBy}>` : ""}`;
-
-    let blocks;
     if (round.contactSheetKey) {
       const sheet = await getObjectBytes(s3, bucket, round.contactSheetKey);
-      const fileId = await uploadImage(web, sheet, `${product.sku}-round-${round.number}.jpg`, `${product.sku} round ${round.number}`);
-      blocks = [
-        { type: "section", text: { type: "mrkdwn", text: summary } },
-        { type: "image", slack_file: { id: fileId }, alt_text: `${product.sku} candidates, numbered 1 to 4` },
-        { type: "context", elements: [{ type: "mrkdwn", text: "Tap a number to see it full size." }] },
-        {
-          type: "actions",
-          elements: [
-            ...succeeded.map((c) => ({
-              type: "button",
-              action_id: `candidate_open_${c.position}`,
-              text: { type: "plain_text", text: String(c.position) },
-              value: c.id,
-            })),
-            { type: "button", action_id: "round_reject", text: { type: "plain_text", text: "None of these" }, value: round.id },
-            ...(missing > 0 ? [retryButton(round.id, missing)] : []),
-          ],
-        },
-      ];
-    } else {
-      // Flow 3, Branches: all four failing is posted, because silence looks like "still generating".
-      const reasons = [...new Set(round.candidates.map((c) => c.error).filter(Boolean))].join("; ");
-      blocks = [
-        { type: "section", text: { type: "mrkdwn", text: `${summary}\n\n⚠️  None of the ${round.candidates.length} candidates generated. ${reasons}` } },
-        { type: "actions", elements: [retryButton(round.id, missing)] },
-      ];
+      const sheetFileId = await uploadImage(web, sheet, `${sku}-round-${round.number}.jpg`, `${sku} round ${round.number}`);
+      await db.round.update({ where: { id: round.id }, data: { sheetFileId } });
+    }
+    for (const c of round.candidates) {
+      if (c.state !== "SUCCEEDED" || !c.storageKey || c.slackFileId) continue;
+      const bytes = await getObjectBytes(s3, bucket, c.storageKey);
+      const slackFileId = await uploadImage(web, bytes, `${sku}-r${round.number}-${c.position}.jpg`, `${sku} candidate ${c.position}`);
+      await db.candidate.update({ where: { id: c.id }, data: { slackFileId } });
     }
 
-    const text = `${product.sku}: ${succeeded.length} candidates ready for review`;
-    const target =
-      round.messageChannelId && round.messageTs
-        ? { channel: round.messageChannelId, ts: round.messageTs }
-        : idea.cardChannelId && idea.cardTs
-          ? { channel: idea.cardChannelId, ts: idea.cardTs }
-          : null;
-
+    const view = await loadRoundView(db, round.id);
+    const text = `${sku}: ${round.candidates.filter((c) => c.state === "SUCCEEDED").length} candidates ready for review`;
+    const blocks = roundMessageBlocks(view);
     let channel: string;
     let ts: string | null;
-    if (target) {
-      await withFreshFile(() => web.chat.update({ ...target, text, blocks: blocks as never }));
-      ({ channel, ts } = target);
+    if (view.channel && view.ts) {
+      await withFreshFile(() => web.chat.update({ channel: view.channel!, ts: view.ts!, text, blocks }));
+      ({ channel, ts } = { channel: view.channel, ts: view.ts });
     } else {
-      const message = await withFreshFile(() =>
-        web.chat.postMessage({ channel: install.channelId!, text, blocks: blocks as never, unfurl_links: false }),
-      );
+      const message = await withFreshFile(() => web.chat.postMessage({ channel: install.channelId!, text, blocks, unfurl_links: false }));
       channel = message.channel ?? install.channelId;
       ts = message.ts ?? null;
     }
-    await db.round.update({
-      where: { id: round.id },
-      data: { messageChannelId: channel, messageTs: ts, postedAt: new Date() },
-    });
-    log.info({ round: round.id, ts, inPlace: Boolean(target) }, "round shown");
+    await db.round.update({ where: { id: round.id }, data: { messageChannelId: channel, messageTs: ts, postedAt: new Date() } });
+    log.info({ round: round.id, ts, inPlace: Boolean(view.ts) }, "round shown");
   }
-}
-
-/** Flow 3, Branches: a round that came back short offers to retry the missing ones. */
-function retryButton(roundId: string, missing: number) {
-  return {
-    type: "button",
-    action_id: "round_retry_missing",
-    text: { type: "plain_text", text: `Retry ${missing} missing` },
-    value: roundId,
-  };
 }
 
 export type GenerationDeps = Deps;
