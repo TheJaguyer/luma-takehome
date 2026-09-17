@@ -226,7 +226,7 @@ async function completeSetup(
           `Returns approved images in display order, primary first, each with an immutable URL and its origin ` +
           `(ai / photographer). Add \`?theme=holiday\` for a theme's images first. Approving an image changes ` +
           `what this returns — no upload step, no dev work per product. If it's ever unreachable, show the ` +
-          `product's own photo.`,
+          `product's own photo.\n\n_\`/shots endpoints\` posts this again any time, with every theme the site can ask for._`,
       ),
     ],
   });

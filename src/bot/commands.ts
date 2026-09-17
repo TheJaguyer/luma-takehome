@@ -4,6 +4,7 @@ import { HeadBucketCommand, type S3Client } from "@aws-sdk/client-s3";
 import type { AllMiddlewareArgs, App, SlackCommandMiddlewareArgs } from "@slack/bolt";
 import type { Logger } from "pino";
 import { buildEventsCsv, buildProductsCsv } from "../core/exportCsv.js";
+import { endpointsMessage } from "../core/endpoints.js";
 import { loadStatus } from "../core/status.js";
 import { recordEvent } from "../core/team.js";
 import { roundsWithMissing } from "../core/roundRetry.js";
@@ -18,6 +19,7 @@ const HELP = [
   "*Shutter* turns shot ideas into approved product images.",
   "• Drop a CSV export from the catalogue sheet in this channel to import products.",
   "• `/shots style` — see or change the house style",
+  "• `/shots endpoints` — the image URLs for the site, and every theme it can ask for",
   "• `/shots themes` — the themes the site can ask for, and each one's look",
   "• `/shots setup` — start setup here, if I was invited before I could hear it",
   "• `/shots export` — post products.csv (status and image links) and the event log here",
@@ -35,6 +37,15 @@ export function registerCommands({ app, db, log, s3, bucket, socketMode, publicB
     await route(args);
   });
 
+  app.action("endpoints_post", async ({ ack, body, client, respond }) => {
+    await ack();
+    const b = body as { team?: { id: string }; channel?: { id: string }; user: { id: string } };
+    const { text, blocks } = await endpointsMessage(db, b.team!.id, publicBaseUrl);
+    const install = await db.install.findUnique({ where: { teamId: b.team!.id } });
+    await client.chat.postMessage({ channel: install?.channelId ?? b.channel!.id, text, blocks, unfurl_links: false });
+    await respond({ response_type: "ephemeral", replace_original: true, text: "Posted in the channel." });
+  });
+
   async function route({ command, respond, client }: SlackCommandMiddlewareArgs & AllMiddlewareArgs) {
     const [verb = "help", ...args] = command.text.trim().split(/\s+/).filter(Boolean);
     log.info({ user: command.user_id, text: command.text }, "/shots");
@@ -49,6 +60,20 @@ export function registerCommands({ app, db, log, s3, bucket, socketMode, publicB
     switch (verb.toLowerCase()) {
       case "status":
         return statusCommand(db, client, command.team_id, args, respond);
+
+      // Flow 7, Step 1. Ephemeral by default — the web developer usually runs it themselves — with
+      // one tap to post it, because the other half of the time it is Ellie fetching it for them.
+      case "endpoints": {
+        const { text, blocks } = await endpointsMessage(db, command.team_id, publicBaseUrl);
+        return respond({
+          response_type: "ephemeral",
+          text,
+          blocks: [
+            ...blocks,
+            { type: "actions", elements: [{ type: "button", action_id: "endpoints_post", text: { type: "plain_text", text: "Post it in the channel" } }] },
+          ],
+        });
+      }
 
       case "themes": {
         const { text, blocks } = await themesCommand(db, command.team_id, publicBaseUrl);
