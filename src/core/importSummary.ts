@@ -88,7 +88,7 @@ export function importSummaryBlocks({ drop, report, themeName, themes }: Summary
   if (report.toDraft === 0 && !drop.themeAnsweredAt) return blocks; // an empty file asks nothing
 
   if (drop.themeAnsweredAt) {
-    const theme = themeName ? `*${themeName}*` : "no theme";
+    const theme = themeName ? `*${themeName}*` : "default images";
     const outcome = report.toDraft
       ? `Ideas for ${plural(report.toDraft, "product")} are being drafted.`
       : `Nothing to draft — every product here already has ${themeName ? `${themeName} ideas` : "everyday ideas"}.`;

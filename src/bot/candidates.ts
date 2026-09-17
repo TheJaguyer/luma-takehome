@@ -9,6 +9,7 @@ import type { Logger } from "pino";
 import { approveCandidate, DONE_AT, generateMore, rejectRound, revokeImage, tryDifferentIdea } from "../core/imageApproval.js";
 import { productTitle, usd } from "../core/ideaCards.js";
 import { deciderLabel } from "../core/people.js";
+import { attemptsOnSource } from "../core/uploads.js";
 import { refreshProductMessage } from "../core/productMessage.js";
 import { refreshUploadMessage } from "../core/uploadMessage.js";
 import { activeApprovers, isApprover } from "../core/team.js";
@@ -101,12 +102,14 @@ export function registerCandidates({ app, db, log, s3, bucket, publicBaseUrl }: 
     const install = await db.install.findUniqueOrThrow({ where: { teamId } });
     const idea = await db.idea.findUniqueOrThrow({ where: { id: round.ideaId } });
     const live = await db.image.count({ where: { productId: round.productId, themeId: idea.themeId, revokedAt: null } });
+    // Attempts against the current source photo, so a replaced photo starts the count again.
+    const attempts = round.product.currentSourcePhotoId ? await attemptsOnSource(db, round.ideaId, round.product.currentSourcePhotoId) : round.number;
     await client.views.open({
       trigger_id: triggerId,
       view: generateMoreModal({
         roundId: round.id,
         title: productTitle(round.product),
-        next: round.number + 1,
+        next: attempts + 1,
         maxRounds: install.maxRounds,
         count: install.candidatesPerRound,
         estimate: install.candidatesPerRound * (EDIT_PRICE_USD[round.model] ?? 0),
@@ -363,7 +366,7 @@ async function candidateModal(db: Db, candidateId: string, needsReason: boolean)
 
 function generateMoreModal(m: { roundId: string; title: string; next: number; maxRounds: number; count: number; estimate: number; offerMoreLike: boolean; needsReason: boolean }): View {
   const blocks: KnownBlock[] = [
-    { type: "section", text: { type: "mrkdwn", text: `🔁  *${m.title}*\nround ${m.next} of ${m.maxRounds} · ${m.count} candidates · ${usd(m.estimate)}` } },
+    { type: "section", text: { type: "mrkdwn", text: `🔁  *${m.title}*\n${[m.next >= 3 ? `round ${m.next} of generation` : null, `${m.count} candidates`, usd(m.estimate)].filter(Boolean).join(" · ")}` } },
     {
       type: "input",
       block_id: "feedback",

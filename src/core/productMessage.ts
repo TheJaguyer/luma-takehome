@@ -32,7 +32,10 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
   const cost = v.candidates.reduce((s, c) => s + c.costUsd, 0);
   const estimate = v.candidates.length * (EDIT_PRICE_USD[v.round.model] ?? 0);
   const attempt = v.attempt ?? v.round.number;
-  const roundLine = `round ${attempt} of ${v.maxRounds}`;
+  // Silent for the first two: "round 1 of 3" tells nobody anything. From the third attempt on,
+  // how many tries this has taken is the interesting fact about the product.
+  const roundLine = attempt >= 3 ? `round ${attempt} of generation` : "";
+  const dotted = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(" · ");
   const ideaLine =
     `Idea: “${v.idea.headline}”${v.idea.decidedBy ? ` — approved by ${v.idea.decidedBy}` : ""}` +
     (v.idea.forced && v.idea.forceReason ? ` ⚠️ forced: “${v.idea.forceReason}”` : "") +
@@ -42,7 +45,7 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
     ({ type: "button" as const, action_id, text: { type: "plain_text" as const, text }, value, ...(style ? { style } : {}) });
 
   if (v.round.state === "GENERATING") {
-    return [section(`🔄  *${title}*\n${roundLine} — generating ${v.candidates.length} candidates · ${usd(estimate)}\n${ideaLine}`)];
+    return [section(`🔄  *${title}*\n${dotted(roundLine, `generating ${v.candidates.length} candidates`, usd(estimate))}\n${ideaLine}`)];
   }
 
   const succeeded = v.candidates.filter((c) => c.state === "SUCCEEDED");
@@ -55,7 +58,7 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
     // the only thing anyone wants from here — the candidates are already in the thread.
     return [
       {
-        ...section(`✅  *${title}* · done — ${images(v.live)}, live now\n“${v.idea.headline}” · ${roundLine}`),
+        ...section(`✅  *${title}* · done — ${images(v.live)}, live now\n${dotted(`“${v.idea.headline}”`, roundLine)}`),
         accessory: button("round_new_idea", "Generate another", v.round.id),
       } as KnownBlock,
     ];
@@ -79,19 +82,19 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
       },
       ...(canMore
         ? []
-        : [{ type: "context" as const, elements: [{ type: "mrkdwn" as const, text: `That was round ${attempt} of ${v.maxRounds}. Going further is a settings change, not a button (#13). ${need} more needed.` }] }]),
+        : [{ type: "context" as const, elements: [{ type: "mrkdwn" as const, text: `That was round ${attempt}, the last one for this idea. Going further is a settings change, not a button (#13). ${need} more needed.` }] }]),
     ];
   }
 
   // Awaiting a decision.
   const approvedHere = succeeded.filter((c) => c.approvedBy);
   const progress = v.live > 0 ? `\n✅ ${v.live} approved${v.theme ? ` for ${v.theme}` : ""} · needs ${DONE_AT - v.live} more` : "";
-  const header = section(`🖼  *${title}*\n${roundLine} · ${succeeded.length} of ${v.candidates.length} candidates · ${usd(cost)}\n${ideaLine}${progress}`);
+  const header = section(`🖼  *${title}*\n${dotted(roundLine, `${succeeded.length} of ${v.candidates.length} candidates`, usd(cost))}\n${ideaLine}${progress}`);
 
   if (!v.round.sheetFileId || succeeded.length === 0) {
     const reasons = [...new Set(v.candidates.map((c) => c.error).filter(Boolean))].join("; ");
     return [
-      section(`🖼  *${title}* · ${roundLine}\n${ideaLine}\n\n⚠️  None of the ${v.candidates.length} candidates generated. ${reasons}`),
+      section(`🖼  *${dotted(title, roundLine)}*\n${ideaLine}\n\n⚠️  None of the ${v.candidates.length} candidates generated. ${reasons}`),
       { type: "actions", elements: [button("round_retry_missing", `Retry ${missing} missing`, v.round.id, "primary"), button("round_new_idea", "Try a different idea", v.round.id)] },
     ];
   }

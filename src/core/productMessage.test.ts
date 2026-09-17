@@ -23,7 +23,9 @@ const actionIds = (v: RoundView) =>
 
 test("generating shows the round and cost, with nothing to press", () => {
   const t = text(view({ state: "GENERATING" }));
-  assert.match(t, /round 1 of 3 — generating 4 candidates · \$0\.17/);
+  assert.match(t, /generating 4 candidates · \$0\.17/);
+  // Rounds 1 and 2 are the normal path: no counter.
+  assert.doesNotMatch(t, /round \d/);
   assert.deepEqual(actionIds(view({ state: "GENERATING" })), []);
 });
 
@@ -58,6 +60,15 @@ test("a decider is named only when it is not the approver, and never as a mentio
   assert.doesNotMatch(other, /<@/);
 });
 
+test("the round counter stays quiet until a product has taken three tries", () => {
+  const third = { id: "r3", number: 3, state: "AWAITING_DECISION" as const, model: "uni-1", feedback: null, sheetFileId: "F3" };
+  assert.doesNotMatch(text(view()), /round \d/);
+  assert.doesNotMatch(text(view({ attempt: 2 })), /round \d/);
+  assert.match(text(view({ round: third, attempt: 3 })), /round 3 of generation/);
+  // A replaced source photo resets it, so the stored round number is not what shows.
+  assert.doesNotMatch(text(view({ round: third, attempt: 1 })), /round \d/);
+});
+
 test("the leading emoji says what is happening now", () => {
   assert.match(text(view({ state: "GENERATING" })), /🔄 /);
   assert.match(text(view()), /🖼 /);
@@ -72,7 +83,7 @@ test("closed and short says it is waiting on a person, and stops offering rounds
   assert.deepEqual(actionIds(closed), ["round_more", "round_new_idea"]);
   const last = view({ state: "CLOSED", live: 0, round: { id: "r3", number: 3, state: "CLOSED", model: "uni-1", feedback: "less styled", sheetFileId: "F3" } });
   assert.deepEqual(actionIds(last), ["round_new_idea"]);
-  assert.match(text(last), /round 3 of 3\. Going further is a settings change/);
+  assert.match(text(last), /That was round 3, the last one for this idea/);
 });
 
 test("published AI images carry the IPTC composite-with-AI marker (#16)", async () => {
