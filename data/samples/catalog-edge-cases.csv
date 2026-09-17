@@ -1,0 +1,8 @@
+SKU,Product Name,Category,Color / Finish,Material,Price,Photo,Shot Idea,Notes
+HG-101,Linen Apron,Textiles,Oat,Linen,$38,https://take-home-service.lumalabs-ext.workers.dev/assets/fde/hg-013.jpg,"baking morning, flour on the counter",new product with a sheet idea
+HG-102,Ceramic Butter Dish,Kitchen,Cream,Stoneware,$30,https://take-home-service.lumalabs-ext.workers.dev/assets/fde/hg-004.jpg,,new product with no idea
+HG-103,Oak Coaster Set (4),Kitchen,Natural Wood,Oak,$24,https://take-home-service.lumalabs-ext.workers.dev/assets/fde/does-not-exist.jpg,,photo URL 404s - imports anyway and is flagged
+,Mystery Row,Decor,Sage,Stoneware,$20,https://take-home-service.lumalabs-ext.workers.dev/assets/fde/hg-001.jpg,,missing SKU - dropped
+HG-104,Stoneware Jug,Ceramics,Ochre,Stoneware,$40,https://take-home-service.lumalabs-ext.workers.dev/assets/fde/hg-006.jpg,,duplicate SKU - both copies dropped
+HG-104,Stoneware Jug (copy),Ceramics,Ochre,Stoneware,$40,https://take-home-service.lumalabs-ext.workers.dev/assets/fde/hg-006.jpg,,duplicate SKU - both copies dropped
+HG-002,Stoneware Mug 12oz,Ceramics,Sage,Stoneware,$32,https://take-home-service.lumalabs-ext.workers.dev/assets/fde/hg-002.jpg,"morning kitchen counter, steam, warm light","El: bestseller, do this one first"

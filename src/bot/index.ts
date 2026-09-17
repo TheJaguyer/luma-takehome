@@ -1,10 +1,12 @@
-import { HeadBucketCommand } from "@aws-sdk/client-s3";
 import { App, LogLevel } from "@slack/bolt";
 import { z } from "zod";
 import { loadConfig } from "../lib/config.js";
 import { createDb } from "../lib/db.js";
 import { createLogger } from "../lib/log.js";
 import { createStorage } from "../lib/storage.js";
+import { registerCommands } from "./commands.js";
+import { registerImports } from "./imports.js";
+import { registerSetup } from "./setup.js";
 
 const config = loadConfig({
   SLACK_BOT_TOKEN: z.string().startsWith("xoxb-"),
@@ -25,25 +27,9 @@ const app = new App({
   logLevel: LogLevel.INFO,
 });
 
-// Step 2 of the build: prove Slack, Postgres and storage all answer from inside Compose.
-// Replaced by the real /shots router as the flows land.
-app.command("/shots", async ({ ack, respond, command }) => {
-  await ack();
-  const [dbOk, storageOk] = await Promise.all([
-    db.$queryRaw`SELECT 1`.then(() => true, () => false),
-    s3.send(new HeadBucketCommand({ Bucket: config.S3_BUCKET })).then(() => true, () => false),
-  ]);
-  log.info({ user: command.user_id, text: command.text, dbOk, storageOk }, "/shots");
-  await respond({
-    response_type: "ephemeral",
-    text: [
-      "👋  Shutter is running.",
-      `     Database  ${dbOk ? "✅" : "❌"}`,
-      `     Storage   ${storageOk ? "✅" : "❌"}`,
-      `     Slack     ✅  (${socketMode ? "Socket Mode" : "HTTP"})`,
-    ].join("\n"),
-  });
-});
+registerSetup({ app, db, log, publicBaseUrl: config.PUBLIC_BASE_URL });
+registerImports({ app, db, log });
+registerCommands({ app, db, log, s3, bucket: config.S3_BUCKET, socketMode });
 
 // Buttons on the candidate message. The full-size view and approval land in build step 6; until
 // then they acknowledge so Slack doesn't show the tapper an error.

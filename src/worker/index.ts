@@ -13,6 +13,7 @@ import {
   submitPending,
   type GenerationDeps,
 } from "./generation.js";
+import { processImports } from "./imports.js";
 
 // Exactly one replica (compose.yaml). The reconciliation loop is the durability: every tick
 // selects rows not in a terminal state and advances them, so a restart loses nothing. The tick is
@@ -34,7 +35,14 @@ const deps: GenerationDeps = {
 };
 
 const TICK_MS = 3_000;
-const steps = { submitPending, pollSubmitted, finishRounds, postReadyRounds };
+const importDeps = { ...deps, slackToken: config.SLACK_BOT_TOKEN };
+const steps = {
+  processImports: () => processImports(importDeps),
+  submitPending: () => submitPending(deps),
+  pollSubmitted: () => pollSubmitted(deps),
+  finishRounds: () => finishRounds(deps),
+  postReadyRounds: () => postReadyRounds(deps),
+};
 let stopping = false;
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
@@ -50,7 +58,7 @@ while (!stopping) {
   // Steps run in sequence and each catches its own failure, so one bad row cannot stall the rest.
   for (const [name, step] of Object.entries(steps)) {
     try {
-      await step(deps);
+      await step();
     } catch (err) {
       log.error({ err, step: name }, "step failed");
     }

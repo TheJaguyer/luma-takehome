@@ -27,6 +27,7 @@ model Install {
   defaultModel        String    @default("uni-1") @map("default_model") // #14
   nudgeAfterDays      Int       @default(3) @map("nudge_after_days") // Flow 4, Step 6
   lastNudgeAt         DateTime? @map("last_nudge_at")
+  setupStartedBy      String?   @map("setup_started_by") // the inviter (Flow 0, Step 2)
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
@@ -86,6 +87,9 @@ model Drop {
   name             String
   filename         String
   slackFileId      String      @map("slack_file_id")
+  // Where the CSV was dropped; the acknowledgement and the summary reply in its thread.
+  channelId        String      @map("channel_id")
+  threadTs         String      @map("thread_ts")
   importedBy       String      @map("imported_by")
   importedAt       DateTime    @default(now()) @map("imported_at")
   state            DropState   @default(IMPORTING)
@@ -96,6 +100,7 @@ model Drop {
   // What the import did, kept for the summary and for status: rejected rows, unfetchable photos,
   // unarchived SKUs, existing rows left unchanged.
   report           Json?
+  error            String?     // FAILED: why, in words the channel was shown
   summaryChannelId String?     @map("summary_channel_id")
   summaryTs        String?     @map("summary_ts")
   lastDailyPostAt  DateTime?   @map("last_daily_post_at")
@@ -106,6 +111,7 @@ model Drop {
   products DropProduct[]
   ideas    Idea[]
 
+  @@unique([slackFileId, threadTs]) // a redelivered Slack event must not import twice
   @@index([teamId, importedAt])
   @@map("drops")
 }
@@ -153,6 +159,11 @@ model DropProduct {
   dropId      String   @map("drop_id")
   productId   String   @map("product_id")
   outcome     ImportOutcome
+  // Needs drafted ideas once the campaign question is answered: new, a new sheet idea, or never
+  // had an idea. Stored rather than recomputed, so a retried import doesn't forget it.
+  draftIdea   Boolean  @default(false) @map("draft_idea")
+  // What differed from the database and was not applied (change review is deferred).
+  changes     String[] @default([])
   createdAt   DateTime @default(now()) @map("created_at")
 
   drop    Drop    @relation(fields: [dropId], references: [id])
