@@ -105,7 +105,8 @@ export function registerCandidates({ app, db, log, s3, bucket, publicBaseUrl }: 
     const { value, triggerId, teamId, userId } = actionContext(body);
     const round = await db.round.findUniqueOrThrow({ where: { id: value }, include: { product: true, candidates: true } });
     const install = await db.install.findUniqueOrThrow({ where: { teamId } });
-    const live = await db.image.count({ where: { productId: round.productId, revokedAt: null } });
+    const idea = await db.idea.findUniqueOrThrow({ where: { id: round.ideaId } });
+    const live = await db.image.count({ where: { productId: round.productId, themeId: idea.themeId, revokedAt: null } });
     await client.views.open({
       trigger_id: triggerId,
       view: generateMoreModal({
@@ -270,7 +271,8 @@ async function postLiveChangeNotice(client: WebClient, round: { messageChannelId
   let blocks: KnownBlock[];
   if (n.kind === "approved") {
     const change = n.isPrimary ? `“${n.headline}” is now primary.` : `“${n.headline}” was added.`;
-    const done = n.live === DONE_AT ? `✅  *${n.sku} is done* — ${DONE_AT} approved images, live now.\n` : "";
+    // Done in this campaign's set: an everyday-done product finishing its holiday set is news too.
+    const done = n.themeLive === DONE_AT ? `✅  *${n.sku} is done${n.theme ? ` for ${n.theme}` : ""}* — ${DONE_AT} approved ${n.theme ? `${n.theme} ` : ""}images, live now.\n` : "";
     text = `${n.sku}'s ${set} changed`;
     blocks = [
       {
@@ -287,7 +289,7 @@ async function postLiveChangeNotice(client: WebClient, round: { messageChannelId
     blocks = [
       {
         type: "section",
-        text: { type: "mrkdwn", text: `↩️  *${n.sku}'s ${set} changed* — an image was reverted by <@${n.userId}>. ${n.live} image${n.live === 1 ? "" : "s"} live now.${forced}` },
+        text: { type: "mrkdwn", text: `↩️  *${n.sku}'s ${set} changed* — an image was reverted by <@${n.userId}>. ${n.live} ${n.theme ? `${n.theme} ` : ""}image${n.live === 1 ? "" : "s"} live now.${forced}` },
       },
     ];
   }

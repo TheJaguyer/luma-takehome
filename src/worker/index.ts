@@ -6,7 +6,7 @@ import { createLogger } from "../lib/log.js";
 import { createLuma } from "../lib/luma.js";
 import { createSlack } from "../lib/slack.js";
 import { createStorage } from "../lib/storage.js";
-import { createIdeas, draftPending, openDrops, postCards } from "./drafting.js";
+import { draftPending, openDrops, postCards } from "./drafting.js";
 import { failInterruptedSubmissions, finishRounds, pollSubmitted, postReadyRounds, submitPending } from "./generation.js";
 import { processImports } from "./imports.js";
 import { scheduleTick } from "./schedule.js";
@@ -66,7 +66,6 @@ log.info({ tickMs: TICK_MS }, "worker started");
 await Promise.all([
   loop("ideas", {
     processImports: () => processImports(imports),
-    createIdeas: () => createIdeas(drafting),
     draftPending: () => draftPending(drafting),
     openDrops: () => openDrops(drafting),
     postCards: () => postCards(drafting),

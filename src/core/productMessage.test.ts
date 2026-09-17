@@ -11,6 +11,7 @@ const view = (over: Partial<RoundView> & { state?: RoundView["round"]["state"] }
   round: { id: "r1", number: 1, state: over.state ?? "AWAITING_DECISION", model: "uni-1", feedback: null, sheetFileId: "F1" },
   maxRounds: 3,
   product: { sku: "HG-002", name: "Stoneware Mug 12oz", color: "Sage" },
+  theme: null,
   idea: { headline: "Morning counter", decidedBy: "U1", forced: false, forceReason: null, state: "APPROVED" },
   candidates: candidates(["SUCCEEDED", "SUCCEEDED", "SUCCEEDED", "SUCCEEDED"]),
   live: 0,
@@ -77,4 +78,15 @@ test("reverting renders from what is live: back to untouched at 0, one fewer oth
   const revertedFromDone = view({ candidates: candidates(["SUCCEEDED", "SUCCEEDED", "SUCCEEDED", "SUCCEEDED"], [1]), live: 1 });
   assert.match(text(revertedFromDone), /✅ 1 approved · needs 1 more/);
   assert.doesNotMatch(text(revertedFromDone), /done —/);
+});
+
+test("a campaign round counts only its own set: holiday candidates on an everyday-done product still show", () => {
+  // HG-002 has 2 everyday images (done), and its holiday candidates just came back: live in the holiday set is 0.
+  const holiday = view({ theme: "holiday", live: 0 });
+  assert.deepEqual(actionIds(holiday), ["candidate_open_1", "candidate_open_2", "candidate_open_3", "candidate_open_4", "round_reject"]);
+  assert.match(text(holiday), /🎨 holiday/);
+  const one = view({ theme: "holiday", live: 1, candidates: candidates(["SUCCEEDED", "SUCCEEDED", "SUCCEEDED", "SUCCEEDED"], [4]) });
+  assert.match(text(one), /✅ 1 approved for holiday · needs 1 more/);
+  const done = view({ theme: "holiday", live: 2, candidates: candidates(["SUCCEEDED", "SUCCEEDED", "SUCCEEDED", "SUCCEEDED"], [1, 4]) });
+  assert.match(text(done), /done — 2 approved holiday images, live now/);
 });

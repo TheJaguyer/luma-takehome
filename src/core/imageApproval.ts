@@ -24,6 +24,15 @@ export function liveImageCount(db: Db | Prisma.TransactionClient, productId: str
   return db.image.count({ where: { productId, revokedAt: null } });
 }
 
+/**
+ * Live images in one campaign's set (null = everyday). Everything scoped to a round — its message,
+ * "done", notices — counts this: holiday candidates for a product already done with everyday images
+ * are still a decision waiting to be made.
+ */
+export function liveInSet(db: Db | Prisma.TransactionClient, productId: string, themeId: string | null) {
+  return db.image.count({ where: { productId, themeId, revokedAt: null } });
+}
+
 export async function approveCandidate(deps: { db: Db; s3: S3Client; bucket: string }, candidateId: string, actor: Actor) {
   const { db, s3, bucket } = deps;
   const candidate = await db.candidate.findUniqueOrThrow({
@@ -165,7 +174,7 @@ export async function revokeImage(db: Db, imageId: string, actor: Actor) {
     productId: image.productId,
     data: { imageId, forced: actor.forced, reason: actor.reason },
   });
-  const live = await liveImageCount(db, image.productId);
+  const live = await liveInSet(db, image.productId, image.themeId);
   return { ok: true as const, image, live };
 }
 

@@ -56,8 +56,10 @@ export async function processImports(deps: Deps) {
     if (o.newIdea) report.newIdeas.push(o.sku);
     if (o.photoProblem) report.photoProblems.push({ line: o.line, sku: o.sku, reason: o.photoProblem });
     if (o.needsPhoto) report.needsPhoto.push(o.sku);
-    if (o.draftIdea) report.toDraft++;
   }
+  // Who actually gets drafted is decided by the campaign answer (src/core/ideaQueue.ts); until then
+  // the count is everything in the file, which is what the estimate on the question uses.
+  report.toDraft = outcomes.length;
 
   const themes = await db.theme.findMany({ where: { teamId: drop.teamId }, orderBy: { createdAt: "desc" } });
   const nextState = report.toDraft > 0 ? "AWAITING_THEME" : "COMPLETE";
@@ -125,7 +127,6 @@ async function applyRow(deps: Deps, drop: { id: string; teamId: string; imported
     where: { teamId_sku: { teamId: drop.teamId, sku: row.sku } },
     include: {
       drops: { where: { dropId: drop.id } },
-      _count: { select: { ideas: true } },
     },
   });
 
@@ -154,23 +155,19 @@ async function applyRow(deps: Deps, drop: { id: string; teamId: string; imported
           photoUrl: row.photoUrl,
         },
       });
-      await tx.dropProduct.create({ data: { dropId: drop.id, productId: created.id, outcome: "CREATED", draftIdea: true } });
+      await tx.dropProduct.create({ data: { dropId: drop.id, productId: created.id, outcome: "CREATED" } });
       await recordEvent(tx, { teamId: drop.teamId, actor: drop.importedBy, type: "product.created", productId: created.id, dropId: drop.id });
       return created;
     });
-    recorded = { outcome: "CREATED", changes: [], draftIdea: true };
+    recorded = { outcome: "CREATED", changes: [], draftIdea: false };
   } else {
     // An existing product: details are never overwritten without review (#12), which v1 does not
     // have yet — so differences are recorded and reported, not applied. A new shot idea is not a
     // change to review; it goes straight to idea review.
     const changes = changedFields(existing, row).map((f) => FIELD_LABELS[f]);
     newIdea = row.shotIdea !== null && row.shotIdea !== existing.sheetShotIdea;
-    // A product with no ideas yet is drafted — unless an earlier import already queued it, which
-    // is what makes re-dropping the same file a no-op rather than a second campaign question.
-    const alreadyQueued = await db.dropProduct.count({
-      where: { productId: existing.id, draftIdea: true, drop: { state: { in: ["AWAITING_THEME", "DRAFTING"] } } },
-    });
-    const draftIdea = newIdea || (existing._count.ideas === 0 && alreadyQueued === 0);
+    // draftIdea here means "the sheet idea changed", which drafts regardless of campaign.
+    const draftIdea = newIdea;
     const outcome = changes.length ? "CHANGED_NOT_APPLIED" : "UNCHANGED";
     product = existing;
     await db.$transaction(async (tx) => {

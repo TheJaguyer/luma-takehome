@@ -9,6 +9,7 @@ import { roundsWithMissing } from "../core/roundRetry.js";
 import type { Db } from "../lib/db.js";
 import { houseStyleModal, startSetup } from "./setup.js";
 import { dailyCommand, productStatus, SKU_PATTERN, statusCommand } from "./status.js";
+import { themesCommand } from "./themes.js";
 
 type Deps = { app: App; db: Db; log: Logger; s3: S3Client; bucket: string; socketMode: boolean; publicBaseUrl: string };
 
@@ -16,6 +17,7 @@ const HELP = [
   "*Shutter* turns shot ideas into approved product images.",
   "• Drop a CSV export from the catalogue sheet in this channel to import products.",
   "• `/shots style` — see or change the house style",
+  "• `/shots themes` — campaign themes, the name the site requests, and each one's look",
   "• `/shots setup` — start setup here, if I was invited before I could hear it",
   "• `/shots export` — post products.csv (status and image links) and the event log here",
   "• `/shots retry` — retry every round that came back missing candidates",
@@ -45,6 +47,11 @@ export function registerCommands({ app, db, log, s3, bucket, socketMode, publicB
     switch (verb.toLowerCase()) {
       case "status":
         return statusCommand(db, command.team_id, args, respond);
+
+      case "themes": {
+        const { text, blocks } = await themesCommand(db, command.team_id, publicBaseUrl);
+        return respond({ response_type: "ephemeral", text, ...(blocks ? { blocks } : {}) });
+      }
 
       case "daily":
         return dailyCommand(db, client, log, command.team_id, respond);

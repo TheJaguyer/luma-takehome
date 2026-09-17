@@ -7,6 +7,7 @@ import type { WebClient } from "@slack/web-api";
 import type { Logger } from "pino";
 import { dropNameFromFilename } from "../core/dropName.js";
 import { importDetailsText, importSummaryBlocks, type ImportReport } from "../core/importSummary.js";
+import { queueIdeasForDrop } from "../core/ideaQueue.js";
 import { recordEvent } from "../core/team.js";
 import { Prisma } from "../generated/prisma/client.js";
 import type { Db } from "../lib/db.js";
@@ -154,14 +155,29 @@ async function answerTheme(
   themeId: string | null,
   userId: string,
 ) {
-  // Anyone can answer (imports are not an approver action), but only once.
-  const claimed = await db.drop.updateMany({
-    where: { id: dropId, state: "AWAITING_THEME", themeAnsweredAt: null },
-    data: { themeAnsweredAt: new Date(), themeAnsweredBy: userId, themeId, state: "DRAFTING", lastProgressAt: new Date() },
+  // Anyone can answer (imports are not an approver action), but only once. Claiming the answer and
+  // queueing the ideas it implies happen together, so an answer never exists without its ideas.
+  const queued = await db.$transaction(async (tx) => {
+    const claimed = await tx.drop.updateMany({
+      where: { id: dropId, state: "AWAITING_THEME", themeAnsweredAt: null },
+      data: { themeAnsweredAt: new Date(), themeAnsweredBy: userId, themeId, state: "DRAFTING", lastProgressAt: new Date() },
+    });
+    if (claimed.count === 0) return null;
+    const count = await queueIdeasForDrop(tx, dropId);
+    const current = await tx.drop.findUniqueOrThrow({ where: { id: dropId } });
+    await tx.drop.update({
+      where: { id: dropId },
+      data: {
+        report: { ...(current.report as ImportReport), toDraft: count },
+        // Nothing to draft for this campaign: the drop has nothing left to do.
+        ...(count === 0 ? { state: "COMPLETE" as const, completedAt: new Date() } : {}),
+      },
+    });
+    return count;
   });
   const drop = await db.drop.findUnique({ where: { id: dropId }, include: { theme: true } });
   if (!drop) return false;
-  if (claimed.count === 0) {
+  if (queued === null) {
     await respond?.({
       response_type: "ephemeral",
       replace_original: false,
@@ -174,7 +190,7 @@ async function answerTheme(
     actor: userId,
     type: "drop.theme_answered",
     dropId,
-    data: { theme: drop.theme?.name ?? null },
+    data: { theme: drop.theme?.name ?? null, ideasQueued: queued },
   });
   await refreshSummary(db, client, dropId);
   return true;

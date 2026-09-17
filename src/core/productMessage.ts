@@ -5,20 +5,22 @@ import type { KnownBlock } from "@slack/types";
 import type { WebClient } from "@slack/web-api";
 import type { Db } from "../lib/db.js";
 import { EDIT_PRICE_USD } from "../lib/luma.js";
-import { DONE_AT, liveImageCount } from "./imageApproval.js";
+import { DONE_AT, liveInSet } from "./imageApproval.js";
 import { productTitle, usd } from "./ideaCards.js";
 
 export type RoundView = {
   round: { id: string; number: number; state: "GENERATING" | "AWAITING_DECISION" | "CLOSED"; model: string; feedback: string | null; sheetFileId: string | null };
   maxRounds: number;
   product: { sku: string; name: string | null; color: string | null };
+  theme: string | null; // the campaign this round is for; null = everyday
   idea: { headline: string; decidedBy: string | null; forced: boolean; forceReason: string | null; state: string };
   candidates: { id: string; position: number; state: string; error: string | null; costUsd: number; approvedBy: string | null }[];
-  live: number;
+  live: number; // live images in this round's campaign set
 };
 
 export function roundMessageBlocks(v: RoundView): KnownBlock[] {
-  const title = productTitle(v.product);
+  const title = productTitle(v.product) + (v.theme ? `  ·  🎨 ${v.theme}` : "");
+  const images = (n: number) => `${n} approved ${v.theme ? `${v.theme} ` : ""}image${n === 1 ? "" : "s"}`;
   const cost = v.candidates.reduce((s, c) => s + c.costUsd, 0);
   const estimate = v.candidates.length * (EDIT_PRICE_USD[v.round.model] ?? 0);
   const roundLine = `round ${v.round.number} of ${v.maxRounds}`;
@@ -42,7 +44,7 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
   if (done) {
     const actions = succeeded.length ? [button("candidate_open_1", `See all ${v.candidates.length}`, succeeded[0]!.id)] : [];
     return [
-      { ...section(`✅  *${title}* · done — ${v.live} approved image${v.live === 1 ? "" : "s"}, live now\n“${v.idea.headline}” · ${roundLine}`), ...(actions.length ? { accessory: actions[0] } : {}) } as KnownBlock,
+      { ...section(`✅  *${title}* · done — ${images(v.live)}, live now\n“${v.idea.headline}” · ${roundLine}`), ...(actions.length ? { accessory: actions[0] } : {}) } as KnownBlock,
     ];
   }
 
@@ -52,7 +54,7 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
     const need = DONE_AT - v.live;
     return [
       section(
-        `⚠️  *${title}* has ${v.live} approved image${v.live === 1 ? "" : "s"} and needs ${DONE_AT}.\n` +
+        `⚠️  *${title}* has ${images(v.live)} and needs ${DONE_AT}.\n` +
           `Nothing is queued — this is waiting on a person.\n${ideaLine}`,
       ),
       {
@@ -70,7 +72,7 @@ export function roundMessageBlocks(v: RoundView): KnownBlock[] {
 
   // Awaiting a decision.
   const approvedHere = succeeded.filter((c) => c.approvedBy);
-  const progress = v.live > 0 ? `\n✅ ${v.live} approved · needs ${DONE_AT - v.live} more` : "";
+  const progress = v.live > 0 ? `\n✅ ${v.live} approved${v.theme ? ` for ${v.theme}` : ""} · needs ${DONE_AT - v.live} more` : "";
   const header = section(`🖼  *${title}*\n${roundLine} · ${succeeded.length} of ${v.candidates.length} candidates · ${usd(cost)}\n${ideaLine}${progress}`);
 
   if (!v.round.sheetFileId || succeeded.length === 0) {
@@ -101,7 +103,7 @@ export async function loadRoundView(db: Db, roundId: string): Promise<RoundView 
     where: { id: roundId },
     include: {
       product: true,
-      idea: { include: { approvedOption: true } },
+      idea: { include: { approvedOption: true, theme: true } },
       candidates: { orderBy: { position: "asc" }, include: { image: true } },
     },
   });
@@ -114,6 +116,7 @@ export async function loadRoundView(db: Db, roundId: string): Promise<RoundView 
     round: { id: round.id, number: round.number, state: round.state, model: round.model, feedback: round.feedback, sheetFileId: round.sheetFileId },
     maxRounds: install.maxRounds,
     product: round.product,
+    theme: idea.theme?.name ?? null,
     idea: {
       headline: idea.approvedOption ? `${idea.approvedOption.headline}${idea.edited ? " (edited)" : ""}` : idea.approvedPrompt ? "Written in Slack" : "—",
       decidedBy: idea.decidedBy,
@@ -129,7 +132,7 @@ export async function loadRoundView(db: Db, roundId: string): Promise<RoundView 
       costUsd: Number(c.costUsd ?? 0),
       approvedBy: c.image && !c.image.revokedAt ? c.image.approvedBy : null,
     })),
-    live: await liveImageCount(db, round.productId),
+    live: await liveInSet(db, round.productId, idea.themeId),
   };
 }
 

@@ -17,6 +17,8 @@ export type Waiting = {
   link: { channel: string; ts: string } | null;
 };
 
+export type Progress = { stage: Stage; live: number; waiting: Waiting | null };
+
 export type ProductStatus = {
   id: string;
   sku: string;
@@ -28,6 +30,12 @@ export type ProductStatus = {
   liveByTheme: Map<string | null, number>; // null = default set
   spend: { total: number; since: (d: Date) => number };
   waiting: Waiting | null;
+  /**
+   * Progress within one campaign (null = everyday): stage from that campaign's latest idea, done at
+   * 2 images in that set. A drop reports on its own campaign, so a holiday run on a product that is
+   * already done with everyday images still reads as "awaiting a decision" in the holiday drop.
+   */
+  forCampaign: (themeId: string | null) => Progress;
   dropIds: string[];
   ideaHeadline: string | null;
   ideaDecidedBy: string | null;
@@ -40,6 +48,7 @@ export type DropStatus = {
   name: string;
   importedAt: Date;
   state: string;
+  themeId: string | null;
   productIds: string[];
   waiting: Waiting | null; // the unanswered campaign question
   lastActivityAt: Date;
@@ -84,15 +93,64 @@ export async function loadStatus(db: Db, teamId: string) {
   const themeName = new Map(themes.map((t) => [t.id, t.name]));
 
   const statuses: ProductStatus[] = products.map((p) => {
-    const idea = p.ideas.find((i) => i.state !== "SUPERSEDED") ?? null;
-    const latest = p.rounds[0] ?? null;
-    const succeeded = latest?.candidates.filter((c) => c.state === "SUCCEEDED").length ?? 0;
-    const stage = productStage({
-      live: p.images.length,
-      hasSourcePhoto: p.currentSourcePhotoId !== null,
-      ideas: p.ideas,
-      latestRound: latest ? { state: latest.state, succeeded } : null,
-    });
+    const images = (themeId: string | null | undefined) => (themeId === undefined ? p.images : p.images.filter((i) => i.themeId === themeId));
+
+    // One definition of stage and "waiting on", applied to all of a product's ideas (product level)
+    // or to one campaign's ideas and images (drop level).
+    const evaluate = (themeId: string | null | undefined): Progress & { idea: (typeof p.ideas)[number] | null } => {
+      const ideas = themeId === undefined ? p.ideas : p.ideas.filter((i) => i.themeId === themeId);
+      const idea = ideas.find((i) => i.state !== "SUPERSEDED") ?? null;
+      const rounds = themeId === undefined ? p.rounds : p.rounds.filter((r) => ideas.some((i) => i.id === r.ideaId));
+      const latest = rounds[0] ?? null;
+      const succeeded = latest?.candidates.filter((c) => c.state === "SUCCEEDED").length ?? 0;
+      const live = images(themeId).length;
+      const stage = productStage({
+        live,
+        hasSourcePhoto: p.currentSourcePhotoId !== null,
+        ideas,
+        latestRound: latest ? { state: latest.state, succeeded } : null,
+      });
+      const label = themeId ? ` (${themeName.get(themeId) ?? "campaign"})` : "";
+      const roundLink = latest?.messageChannelId && latest.messageTs ? { channel: latest.messageChannelId, ts: latest.messageTs } : null;
+      const ideaLink = idea?.cardChannelId && idea.cardTs ? { channel: idea.cardChannelId, ts: idea.cardTs } : null;
+      let waiting: Waiting | null = null;
+      switch (stage) {
+        case "ideas_awaiting_review":
+          waiting = { on: "approver", what: `ideas${label}`, since: idea!.cardShownAt ?? idea!.draftedAt ?? idea!.createdAt, link: ideaLink };
+          break;
+        case "awaiting_decision":
+          waiting = { on: "approver", what: `candidates${label}`, since: latest!.completedAt ?? latest!.createdAt, link: roundLink };
+          break;
+        case "generating":
+          waiting = { on: "system", what: `generating${label}`, since: latest!.createdAt, link: roundLink };
+          break;
+        case "needs_source_photo":
+          waiting = { on: "anyone", what: "needs a source photo", since: p.createdAt, link: ideaLink };
+          break;
+        case "drafting":
+          if (idea?.state === "DRAFT_FAILED") waiting = { on: "anyone", what: `drafting failed${label} — \`/shots ideas\` retries`, since: idea.createdAt, link: null };
+          break;
+        case "waiting_on_person": {
+          const since = latest?.rejectedAt ?? latest?.completedAt ?? latest?.createdAt ?? p.updatedAt;
+          const roundsForIdea = idea ? rounds.filter((r) => r.ideaId === idea.id).length : 0;
+          if (succeeded === 0 && latest?.state === "AWAITING_DECISION") {
+            waiting = { on: "anyone", what: `no candidates generated${label}`, since, link: roundLink };
+          } else if (roundsForIdea >= install.maxRounds) {
+            waiting = { on: "settings", what: `round ${install.maxRounds} of ${install.maxRounds} ended short${label}`, since, link: roundLink };
+          } else {
+            // #5a's quietest state: in no queue, nobody's turn.
+            waiting = { on: "nobody", what: `${live} of ${DONE_AT} approved${label}`, since, link: roundLink };
+          }
+          break;
+        }
+      }
+      return { stage, live, waiting, idea };
+    };
+
+    const overall = evaluate(undefined);
+    const idea = overall.idea;
+    const stage = overall.stage;
+    const waiting = overall.waiting;
 
     const liveByTheme = new Map<string | null, number>();
     for (const img of p.images) {
@@ -105,40 +163,6 @@ export async function loadStatus(db: Db, teamId: string) {
       ...p.ideas.map((i) => ({ at: i.draftedAt ?? i.createdAt, usd: Number(i.draftCostUsd ?? 0) })),
     ];
 
-    const roundLink = latest?.messageChannelId && latest.messageTs ? { channel: latest.messageChannelId, ts: latest.messageTs } : null;
-    const ideaLink = idea?.cardChannelId && idea.cardTs ? { channel: idea.cardChannelId, ts: idea.cardTs } : null;
-    let waiting: Waiting | null = null;
-    switch (stage) {
-      case "ideas_awaiting_review":
-        waiting = { on: "approver", what: "ideas", since: idea!.cardShownAt ?? idea!.draftedAt ?? idea!.createdAt, link: ideaLink };
-        break;
-      case "awaiting_decision":
-        waiting = { on: "approver", what: "candidates", since: latest!.completedAt ?? latest!.createdAt, link: roundLink };
-        break;
-      case "generating":
-        waiting = { on: "system", what: "generating", since: latest!.createdAt, link: roundLink };
-        break;
-      case "needs_source_photo":
-        waiting = { on: "anyone", what: "needs a source photo", since: p.createdAt, link: ideaLink };
-        break;
-      case "drafting":
-        if (idea?.state === "DRAFT_FAILED") waiting = { on: "anyone", what: "drafting failed — `/shots ideas` retries", since: idea.createdAt, link: null };
-        break;
-      case "waiting_on_person": {
-        const since = latest?.rejectedAt ?? latest?.completedAt ?? latest?.createdAt ?? p.updatedAt;
-        const roundsForIdea = idea ? p.rounds.filter((r) => r.ideaId === idea.id).length : 0;
-        if (succeeded === 0 && latest?.state === "AWAITING_DECISION") {
-          waiting = { on: "anyone", what: "no candidates generated", since, link: roundLink };
-        } else if (roundsForIdea >= install.maxRounds) {
-          waiting = { on: "settings", what: `round ${install.maxRounds} of ${install.maxRounds} ended short`, since, link: roundLink };
-        } else {
-          // #5a's quietest state: in no queue, nobody's turn.
-          waiting = { on: "nobody", what: `${p.images.length} of ${DONE_AT} approved`, since, link: roundLink };
-        }
-        break;
-      }
-    }
-
     return {
       id: p.id,
       sku: p.sku,
@@ -150,6 +174,10 @@ export async function loadStatus(db: Db, teamId: string) {
       liveByTheme,
       spend: { total: costs.reduce((s, c) => s + c.usd, 0), since: (d: Date) => costs.filter((c) => c.at >= d).reduce((s, c) => s + c.usd, 0) },
       waiting,
+      forCampaign: (themeId) => {
+        const { stage, live, waiting } = evaluate(themeId);
+        return { stage, live, waiting };
+      },
       dropIds: p.drops.map((d) => d.dropId),
       ideaHeadline: idea?.approvedOption?.headline ?? (idea?.approvedPrompt ? "Written in Slack" : null),
       ideaDecidedBy: idea?.state === "APPROVED" ? idea.decidedBy : null,
@@ -172,6 +200,7 @@ export async function loadStatus(db: Db, teamId: string) {
     name: d.name,
     importedAt: d.importedAt,
     state: d.state,
+    themeId: d.themeId,
     productIds: d.products.map((p) => p.productId),
     waiting:
       d.state === "AWAITING_THEME" && d.summaryChannelId && d.summaryTs
@@ -182,7 +211,7 @@ export async function loadStatus(db: Db, teamId: string) {
     lastActivityAt: d.lastProgressAt,
   }));
 
-  return { install, products: statuses, drops: dropStatuses, thresholds: thresholds(install) };
+  return { install, products: statuses, drops: dropStatuses, themes: themeName, thresholds: thresholds(install) };
 }
 
 export type Status = Awaited<ReturnType<typeof loadStatus>>;
@@ -194,17 +223,38 @@ export function dropProducts(status: Status, dropId: string) {
   return status.products.filter((p) => ids.has(p.id));
 }
 
-/** A drop is complete when every product in it is done or skipped (Flow 4, Step 8). */
-export function dropComplete(status: Status, dropId: string) {
-  const products = dropProducts(status, dropId);
-  return products.length > 0 && products.every((p) => p.stage === "done" || p.stage === "skipped");
+/** Each product's progress in the drop's own campaign. */
+export function dropProgress(status: Status, dropId: string) {
+  const drop = status.drops.find((d) => d.id === dropId);
+  return dropProducts(status, dropId).map((p) => ({ product: p, ...p.forCampaign(drop?.themeId ?? null) }));
 }
 
+/** A drop is complete when every product in it is done or skipped, in its campaign (Flow 4, Step 8). */
+export function dropComplete(status: Status, dropId: string) {
+  const progress = dropProgress(status, dropId);
+  return progress.length > 0 && progress.every((p) => p.stage === "done" || p.stage === "skipped");
+}
+
+/**
+ * Stuck items across products and the drops in scope. A product can be waiting in more than one
+ * campaign at once (holiday candidates while everyday is done), so each campaign's wait is listed.
+ */
 export function stuckItems(status: Status, scope: ProductStatus[] = status.products, drops: DropStatus[] = status.drops, now = new Date()) {
-  const items = [
-    ...drops.filter((d) => isStuck(d.waiting, status.thresholds, now)).map((d) => ({ label: d.name, waiting: d.waiting!, priority: false })),
-    ...scope.filter((p) => isStuck(p.waiting, status.thresholds, now)).map((p) => ({ label: p.sku, waiting: p.waiting!, priority: p.priority })),
-  ];
+  const inScope = new Set(scope.map((p) => p.id));
+  const seen = new Set<string>();
+  const items: { label: string; waiting: Waiting; priority: boolean }[] = [];
+  const add = (label: string, waiting: Waiting | null, priority: boolean) => {
+    if (!isStuck(waiting, status.thresholds, now)) return;
+    const key = `${label}|${waiting!.what}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push({ label, waiting: waiting!, priority });
+  };
+  for (const d of drops) add(d.name, d.waiting, false);
+  for (const p of scope) add(p.sku, p.waiting, p.priority);
+  for (const d of drops.filter((d) => d.state !== "COMPLETE")) {
+    for (const { product, waiting } of dropProgress(status, d.id)) if (inScope.has(product.id)) add(product.sku, waiting, product.priority);
+  }
   return items.sort((a, b) => +a.waiting.since - +b.waiting.since);
 }
 

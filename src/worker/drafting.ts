@@ -1,5 +1,5 @@
 // Flow 1, Step 7 → Flow 2, Step 1–2, as reconciliation steps:
-//   createIdeas   a drop in DRAFTING gets one DRAFTING idea per product that needs one
+//   (ideas are created when the campaign question is answered — src/core/ideaQueue.ts)
 //   draftPending  DRAFTING ideas are drafted by Claude (retried; DRAFT_FAILED after 3 tries)
 //   openDrops     once nothing in a drop is still drafting, post its queue message → OPEN
 //   postCards     cards for ideas awaiting review are posted a few per tick (Slack rate limits)
@@ -18,32 +18,6 @@ type Deps = { db: Db; web: WebClient; log: Logger; claude: Anthropic };
 const MAX_DRAFT_ATTEMPTS = 3;
 const DRAFT_CONCURRENCY = 8;
 const CARDS_PER_TICK = 5;
-
-export async function createIdeas({ db, log }: Deps) {
-  const drops = await db.drop.findMany({ where: { state: "DRAFTING" }, include: { theme: true } });
-  for (const drop of drops) {
-    const install = await db.install.findUniqueOrThrow({ where: { teamId: drop.teamId } });
-    const products = await db.dropProduct.findMany({ where: { dropId: drop.id, draftIdea: true }, include: { product: true } });
-    // Idempotent: a product that already has an idea in this drop gets nothing new.
-    const existing = new Set((await db.idea.findMany({ where: { dropId: drop.id }, select: { productId: true } })).map((i) => i.productId));
-    const missing = products.filter(({ product }) => !existing.has(product.id));
-    if (missing.length === 0) continue;
-    const { count } = await db.idea.createMany({
-      data: missing.map(({ product }) => ({
-        teamId: drop.teamId,
-        productId: product.id,
-        dropId: drop.id,
-        themeId: drop.themeId,
-        mode: product.sheetShotIdea ? ("EXPAND" as const) : ("DRAFT" as const),
-        rawSheetIdea: product.sheetShotIdea,
-        // Recorded, so editing the style or theme later doesn't rewrite history (#3b).
-        houseStyleUsed: install.houseStyle,
-        themeLookUsed: drop.theme?.look ?? null,
-      })),
-    });
-    if (count > 0) log.info({ drop: drop.id, ideas: count }, "ideas created for drafting");
-  }
-}
 
 export async function draftPending({ db, log, claude }: Deps) {
   const ideas = await db.idea.findMany({

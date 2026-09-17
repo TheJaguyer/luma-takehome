@@ -8,7 +8,7 @@ import type { Logger } from "pino";
 import type { Db } from "../lib/db.js";
 import { usd } from "./ideaCards.js";
 import { dropBlocks, stuckListBlocks, type LinkResolver } from "./statusBlocks.js";
-import { dropComplete, dropProducts, loadStatus, stuckItems } from "./status.js";
+import { dropComplete, dropProducts, dropProgress, loadStatus, stuckItems } from "./status.js";
 import { activeApprovers, recordEvent } from "./team.js";
 
 const DAILY_HOUR = 9;
@@ -55,7 +55,7 @@ export async function postCompletions(db: Db, web: WebClient, log: Logger, teamI
     const claimed = await db.drop.updateMany({ where: { id: drop.id, state: "OPEN" }, data: { state: "COMPLETE", completedAt: new Date() } });
     if (claimed.count === 0) continue;
     const products = dropProducts(status, drop.id);
-    const done = products.filter((p) => p.stage === "done").length;
+    const done = dropProgress(status, drop.id).filter((p) => p.stage === "done").length;
     const spend = products.reduce((s, p) => s + p.spend.total, 0);
     // The message Maya actually wants at the end of a launch.
     await web.chat.postMessage({

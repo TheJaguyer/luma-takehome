@@ -492,6 +492,24 @@ already promoted from an extra to a dependency. See Branches.
 pass on 37 untethered ideas and makes the campaign a re-draft — trading a question for
 rework at exactly the moment the brief says the theme matters.)*
 
+> **[revised — build step 9] Who gets drafted is decided by the answer, not before it.** As first
+> built, the import chose which products needed ideas ("has none yet") before anyone said which
+> campaign — so a holiday run could only ever reach *new* products, and HG-002, already done with
+> everyday images, could never get holiday shots. That is #3b's blind spot made structural. Now:
+> - A product in the file is drafted when it has **no idea yet for the campaign chosen** (`No
+>   theme` = everyday), or its sheet idea changed. Re-dropping the catalog and picking `holiday`
+>   starts the Q4 run for everything in it.
+> - **Every import with products asks the question**, and says what it will do: products that
+>   already have ideas for the chosen campaign are skipped. If that leaves nothing, the summary says
+>   so and the drop closes. *Cost:* a routine re-import is one tap (`No theme`) instead of silent.
+> - A sheet idea is **expanded once**. A later campaign run on the same product drafts fresh scenes
+>   in that campaign's look rather than re-expanding an everyday fragment.
+> - A drop reports on **its own campaign**: its progress, completion and stuck list count a product
+>   done at 2 images *in that set*. Product-level status keeps #5a's rule (done at 2 images total).
+>
+> *(Rejected: `/shots campaign <theme> <drop>` as a separate command — keeps routine re-imports
+> quiet, but adds a second way to start drafting that someone has to know exists.)*
+
 **Decision (1.2): the drop name is derived from the file, shown in the summary, and
 editable inline.** Maya types this name (`/shots status q4-drop`), so it is user-facing
 copy, not an internal id — but it is not worth a second required question on a message
@@ -679,7 +697,7 @@ and the queue is text-only — no money has been spent beyond a cent of drafting
 | File is not a CSV, or is empty | One reply in thread naming the problem; nothing imported. |
 | Headers unrecognizable (`SKU` or `Photo` missing) | Whole file rejected with the headers it did find. This is the only whole-file rejection. |
 | Every row rejected | Summary still posts, so the failure is visible rather than silent. |
-| Same file imported twice | Second import reports "0 new · 0 changes" (Step 3 idempotency). |
+| Same file imported twice | Second import reports "0 new · 0 changes" (Step 3 idempotency), and asks the campaign question: `No theme` drafts nothing new; a campaign starts that campaign's run (Step 4, revised). |
 | Two people import at once | Second import queues behind the first; SKU matching makes the result the same either way. |
 | Photo URL host is down at import time | Every affected product still imports, flagged **needs a source photo** (Step 5). Recovery is a re-import once the host is back, or a photo upload per product (#11). A flaky host no longer turns a clean import into a partial one — it turns it into a visible to-do list. |
 | A row's SKU was previously **archived** (#6) | Unarchived, named in the summary, one tap to undo before drafting starts (Step 4). History comes back with it. |

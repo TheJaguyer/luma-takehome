@@ -63,7 +63,6 @@ export function importSummaryBlocks({ drop, report, themeName, themes }: Summary
         listSkus(report.needsPhoto),
     );
   }
-  if (report.toDraft) lines.push(`💡  ${plural(report.toDraft, "product needs", "products need")} shot ideas`);
   if (lines.length === 0) lines.push("Nothing new in this file.");
 
   const hasDetails = report.notApplied.length || report.rejected.length || report.photoProblems.length;
@@ -85,18 +84,16 @@ export function importSummaryBlocks({ drop, report, themeName, themes }: Summary
     });
   }
 
-  if (report.toDraft === 0) return blocks;
+  if (report.toDraft === 0 && !drop.themeAnsweredAt) return blocks; // an empty file asks nothing
 
   if (drop.themeAnsweredAt) {
     const theme = themeName ? `*${themeName}*` : "no theme";
+    const outcome = report.toDraft
+      ? `Ideas for ${plural(report.toDraft, "product")} are being drafted.`
+      : `Nothing to draft — every product here already has ${themeName ? `${themeName} ideas` : "everyday ideas"}.`;
     blocks.push({
       type: "context",
-      elements: [
-        {
-          type: "mrkdwn",
-          text: `🎨 Campaign: ${theme} — chosen by <@${drop.themeAnsweredBy}>. Ideas for ${plural(report.toDraft, "product")} are being drafted.`,
-        },
-      ],
+      elements: [{ type: "mrkdwn", text: `🎨 Campaign: ${theme} — chosen by <@${drop.themeAnsweredBy}>. ${outcome}` }],
     });
     return blocks;
   }
@@ -110,9 +107,10 @@ export function importSummaryBlocks({ drop, report, themeName, themes }: Summary
       text: {
         type: "mrkdwn",
         text:
-          `One question before I draft ideas for those ${report.toDraft} — *is this batch for a campaign?* ` +
-          `Drafting starts either way (about $${draftingCost(report.toDraft).toFixed(2)}). ` +
-          `No image is generated until you approve an idea.${styleNote}`,
+          `One question before I draft ideas — *is this batch for a campaign?* ` +
+          `Products that already have ideas for the campaign you pick are skipped, so choosing one here ` +
+          `starts that campaign for everything in the file. Drafting starts either way (up to about ` +
+          `$${draftingCost(report.toDraft).toFixed(2)}). No image is generated until you approve an idea.${styleNote}`,
       },
     },
     {

@@ -7,6 +7,7 @@ import {
   age,
   DONE_AT,
   dropProducts,
+  dropProgress,
   PAGE_IMAGES,
   startOfMonth,
   stuckItems,
@@ -31,7 +32,7 @@ const STAGE_LINES: [ProductStatus["stage"][], string, string][] = [
   [["not_started", "skipped"], "⏸", "not started or skipped"],
 ];
 
-function stageLines(products: ProductStatus[]) {
+function stageLines(products: { stage: ProductStatus["stage"] }[]) {
   return STAGE_LINES.map(([stages, icon, label]) => {
     const n = products.filter((p) => stages.includes(p.stage)).length;
     return n ? `${icon}  ${n} ${label}` : null;
@@ -71,21 +72,24 @@ export function dropBlocks(status: Status, dropId: string, opts: { title?: strin
   const now = opts.now ?? new Date();
   const drop = status.drops.find((d) => d.id === dropId)!;
   const products = dropProducts(status, dropId);
-  const done = products.filter((p) => p.stage === "done").length;
+  // A drop reports on its own campaign: done means 2 images in that set.
+  const progress = dropProgress(status, dropId);
+  const done = progress.filter((p) => p.stage === "done").length;
   const stuck = stuckItems(status, products, [drop], now);
-  const awaiting = products.filter((p) => p.stage === "awaiting_decision" && p.priority).map((p) => p.sku);
+  const awaiting = progress.filter((p) => p.stage === "awaiting_decision" && p.product.priority).map((p) => p.product.sku);
   const date = drop.importedAt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   const spend = products.reduce((s, p) => s + p.spend.total, 0);
+  const campaignName = drop.themeId ? status.themes.get(drop.themeId) : null;
   const lines = [
-    `📊  *${opts.title ?? `${drop.name} · imported ${date}`} · ${plural(products.length, "product")}*`,
+    `📊  *${opts.title ?? `${drop.name} · imported ${date}`} · ${plural(products.length, "product")}*${campaignName ? `   🎨 ${campaignName}` : ""}`,
     `${bar(done, products.length)}  ${done} of ${products.length} done`,
     "",
-    ...stageLines(products).filter((l) => !l.startsWith("✅")),
+    ...stageLines(progress).filter((l) => !l.startsWith("✅")),
     awaiting.length ? `⭐  Priority waiting on a decision: ${awaiting.join(", ")}` : null,
     drop.waiting ? `⚠️  The campaign question hasn't been answered, so no ideas are drafted yet` : null,
     "",
     stuck.length ? `⚠️  ${stuck.length} stuck` : "✅  Nothing is stuck",
-    `💰  ${usd(spend)} spent on this drop`,
+    `💰  ${usd(spend)} spent on these products`,
   ].filter((l) => l !== null);
   return withButtons(section(lines.join("\n")), stuck.length > 0, thin(products).length > 0, `drop:${dropId}`);
 }

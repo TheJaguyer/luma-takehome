@@ -160,8 +160,8 @@ model DropProduct {
   dropId      String   @map("drop_id")
   productId   String   @map("product_id")
   outcome     ImportOutcome
-  // Needs drafted ideas once the campaign question is answered: new, a new sheet idea, or never
-  // had an idea. Stored rather than recomputed, so a retried import doesn't forget it.
+  // The sheet idea changed in this import, so the product drafts whatever campaign is chosen.
+  // Stored rather than recomputed, so a retried import doesn't forget it (src/core/ideaQueue.ts).
   draftIdea   Boolean  @default(false) @map("draft_idea")
   // What differed from the database and was not applied (change review is deferred).
   changes     String[] @default([])
