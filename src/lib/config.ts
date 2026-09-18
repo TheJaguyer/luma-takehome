@@ -21,3 +21,17 @@ export function loadConfig<T extends z.ZodRawShape>(extra: T) {
   }
   return parsed.data;
 }
+
+/**
+ * A PUBLIC_BASE_URL nobody replaced. Every image URL, the lookup the website calls and the
+ * integration message are all built from it, so a deployed box still carrying the Compose default
+ * hands the team links that work on exactly one machine — and nothing else goes wrong to say so.
+ */
+export function isLocalBaseUrl(publicBaseUrl: string) {
+  try {
+    const { hostname } = new URL(publicBaseUrl);
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname.endsWith(".localhost");
+  } catch {
+    return false;
+  }
+}

@@ -5,6 +5,7 @@ import type { AllMiddlewareArgs, App, SlackCommandMiddlewareArgs } from "@slack/
 import type { Logger } from "pino";
 import { buildEventsCsv, buildProductsCsv } from "../core/exportCsv.js";
 import { endpointsMessage } from "../core/endpoints.js";
+import { isLocalBaseUrl } from "../lib/config.js";
 import { loadStatus } from "../core/status.js";
 import { recordEvent } from "../core/team.js";
 import { roundsWithMissing } from "../core/roundRetry.js";
@@ -213,6 +214,9 @@ export function registerCommands({ app, db, log, s3, bucket, socketMode, publicB
           db.$queryRaw`SELECT 1`.then(() => true, () => false),
           s3.send(new HeadBucketCommand({ Bucket: bucket })).then(() => true, () => false),
         ]);
+        // Deployed (HTTP) and still on the Compose default: every link this bot hands out works on
+        // one machine only, and no other check fails to say so.
+        const urlWrong = !socketMode && isLocalBaseUrl(publicBaseUrl);
         return respond({
           response_type: "ephemeral",
           text: [
@@ -220,7 +224,11 @@ export function registerCommands({ app, db, log, s3, bucket, socketMode, publicB
             `     Database  ${dbOk ? "✅" : "❌"}`,
             `     Storage   ${storageOk ? "✅" : "❌"}`,
             `     Slack     ✅  (${socketMode ? "Socket Mode" : "HTTP"})`,
-          ].join("\n"),
+            `     Base URL  ${urlWrong ? "⚠️" : "✅"}  ${publicBaseUrl}`,
+            urlWrong ? "\n⚠️  I'm deployed but still handing out localhost links. Set `PUBLIC_BASE_URL` to this host and redeploy — see INSTALL.md." : null,
+          ]
+            .filter((l) => l !== null)
+            .join("\n"),
         });
       }
 

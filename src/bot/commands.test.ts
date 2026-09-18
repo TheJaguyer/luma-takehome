@@ -26,3 +26,16 @@ test("`/shots help` lists every command, in the order the typeahead suggests the
   // help does not need to advertise itself; everything else must be findable from inside Slack.
   assert.deepEqual(listed, hinted.filter((v) => v !== "help"));
 });
+
+import { isLocalBaseUrl } from "../lib/config.js";
+
+test("a base URL nobody replaced is recognised, whatever shape it takes", () => {
+  for (const local of ["http://localhost", "http://localhost:3000", "https://127.0.0.1", "http://app.localhost:3000"]) {
+    assert.equal(isLocalBaseUrl(local), true, local);
+  }
+  for (const real of ["https://shutter.example.com", "https://shots.example.com/", "http://10.0.0.4"]) {
+    assert.equal(isLocalBaseUrl(real), false, real);
+  }
+  // Not a URL at all: config validation already rejected it, so this must not throw on the way.
+  assert.equal(isLocalBaseUrl("not a url"), false);
+});

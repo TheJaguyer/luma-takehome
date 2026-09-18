@@ -219,14 +219,14 @@ async function completeSetup(
   // Step 5: the web person must not have to ask anyone for this.
   await client.chat.postMessage({
     channel: channelId,
-    text: `For whoever wires up the site: GET ${base}/products/{SKU}/images`,
+    text: `For developers: GET ${base}/products/{SKU}/images`,
     blocks: [
       section(
-        `🔌  *For whoever wires up the site:*\n\`GET ${base}/products/{SKU}/images\`\n\n` +
+        `🔌  *For developers:*\n\`GET ${base}/products/{SKU}/images\`\n\n` +
           `Returns approved images in display order, primary first, each with an immutable URL and its origin ` +
           `(ai / photographer). Add \`?theme=holiday\` for a theme's images first. Approving an image changes ` +
-          `what this returns — no upload step, no dev work per product. If it's ever unreachable, show the ` +
-          `product's own photo.\n\n_\`/shots endpoints\` posts this again any time, with every theme the site can ask for._`,
+          `what this returns — no upload step, no dev work per product.` +
+          `\n\n_\`/shots endpoints\` posts this again any time, with every theme the site can ask for._`,
       ),
     ],
   });

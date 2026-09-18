@@ -1,7 +1,7 @@
 import { App, LogLevel } from "@slack/bolt";
 import { z } from "zod";
 import { retryMissing, roundsWithMissing } from "../core/roundRetry.js";
-import { loadConfig } from "../lib/config.js";
+import { isLocalBaseUrl, loadConfig } from "../lib/config.js";
 import { createDb } from "../lib/db.js";
 import { createLogger } from "../lib/log.js";
 import { createStorage } from "../lib/storage.js";
@@ -63,7 +63,14 @@ app.error(async (err) => {
 });
 
 await app.start(config.PORT);
-log.info({ socketMode, port: socketMode ? undefined : config.PORT }, "bot started");
+log.info({ socketMode, port: socketMode ? undefined : config.PORT, publicBaseUrl: config.PUBLIC_BASE_URL }, "bot started");
+// Not fatal: a bot that won't start is a bot nobody can ask what's wrong. Loud, and in /shots health.
+if (!socketMode && isLocalBaseUrl(config.PUBLIC_BASE_URL)) {
+  log.error(
+    { publicBaseUrl: config.PUBLIC_BASE_URL },
+    "PUBLIC_BASE_URL is still the local default on a deployed bot: every image URL and the lookup the site calls will point at localhost",
+  );
+}
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, async () => {
