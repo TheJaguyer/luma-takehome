@@ -6,7 +6,7 @@
 // The two options are written as what each one *does next*, including the cost, rather than as
 // "source photo" versus "finished shot" — terms that mean nothing to a freelancer.
 import type { S3Client } from "@aws-sdk/client-s3";
-import type { App } from "@slack/bolt";
+import type { App, BlockSuggestion } from "@slack/bolt";
 import type { KnownBlock, View } from "@slack/types";
 import type { WebClient } from "@slack/web-api";
 import type { Logger } from "pino";
@@ -70,9 +70,11 @@ export function registerUploads({ app, db, log, s3, bucket, publicBaseUrl, botTo
 
   // Typeahead over the catalogue: 300 SKUs is past what a static dropdown holds, and typing three
   // characters of a name is faster than scrolling either way.
-  app.options("upload_product", async ({ options, ack }) => {
-    const q = (options.payload as { value?: string }).value?.trim() ?? "";
-    const teamId = (options.body as { team?: { id: string } }).team?.id ?? "";
+  // `payload` is the block_suggestion itself — Bolt's `options` is the same object, not a wrapper.
+  app.options("upload_product", async ({ payload, ack }) => {
+    const suggestion = payload as BlockSuggestion;
+    const q = suggestion.value.trim();
+    const teamId = suggestion.team?.id ?? suggestion.user.team_id ?? "";
     const products = await db.product.findMany({
       where: {
         teamId,
