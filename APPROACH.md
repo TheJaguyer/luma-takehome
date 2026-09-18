@@ -6,6 +6,7 @@ A Slack bot belongs to the one workspace it is installed in, and sharing it acro
 needs per-workspace OAuth and tenancy that are out of scope here. The quickest way in is to run it
 locally: create the app from [`slack/manifest.yaml`](slack/manifest.yaml) in your own workspace
 and follow **[INSTALL.md](docs/INSTALL.md)**, Path A (~15 minutes, Docker only).
+You can, however, view the same image endpoints used in the demo deployment. Try https://shutter.jarrettguyer.com/products/HG-005/images to see how shutter serves product images.
 
 ## What I built, and why
 
