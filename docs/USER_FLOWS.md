@@ -2335,3 +2335,49 @@ ASSUMPTIONS #4 (lookup, immutable URLs, approval as publication, live-change not
 request parameter**) · #4c (about three images per page) · #3b (campaign sets — **largely resolved**, Step 3) · #6 (**resolves its
 open question**: archived products keep being served) · #10 (multi-product images) ·
 #11 (source photo versions) · #15 (square only) · #16 (`origin` per image).
+
+---
+
+# System design — the demo build
+
+What these flows run on, as deployed for the demo.
+
+```
+                 Slack review channel                 The product site
+             (the team, phone or desktop)          (asks for images by SKU)
+                         │                                   │
+                         │ events, taps, file drops          │ lookup: cached 30s
+                         │                                   │ images: cached forever
+   ┌─────────────────────┼───────────────────────────────────┼─────────────────┐
+   │  One VM · one Docker Compose file                       │                 │
+   │                     ▼                                   ▼                 │
+   │   ┌──────────────────────────────────────────────────────────────────┐    │
+   │   │               caddy · TLS and routing (only public ports)        │    │
+   │   └──────┬───────────────────────────────┬───────────────────┬───────┘    │
+   │          │ /slack/*                      │ /products/*       │ /images/*  │
+   │          ▼                               ▼                   │ (approved  │
+   │   ┌─────────────┐                ┌───────────────┐           │  only)     │
+   │   │ bot         │                │ lookup        │           │            │
+   │   │ commands,   │                │ read-only,    │           │            │
+   │   │ buttons,    │                │ never fails   │           │            │
+   │   │ file drops  │                └───────┬───────┘           │            │
+   │   └──────┬──────┘                        │                   ▼            │
+   │          ▼                               ▼             ┌────────────┐     │
+   │   ┌───────────────────────────────────────────────┐    │ garage     │     │
+   │   │ postgres · system of record                   │    │ S3-style   │     │
+   │   └───────────────────────┬───────────────────────┘    │ images     │     │
+   │                           ▼                            └─────▲──────┘     │
+   │   ┌───────────────────────────────────────────────┐          │            │
+   │   │ worker · exactly one                          ├──────────┘            │
+   │   │ imports, drafting, generation, daily post     │                       │
+   │   └───────┬──────────────────┬─────────────────┬──┘                       │
+   └───────────┼──────────────────┼─────────────────┼──────────────────────────┘
+               ▼                  ▼                 ▼
+        Anthropic Claude      Luma uni-1        Slack API
+        drafts shot ideas     image edit        contact sheets, cards, daily post
+```
+
+Slack reaches the bot over HTTPS through Caddy when deployed (locally, over Socket Mode instead).
+The database is the source of truth, the worker does everything that happens without a person,
+and only approved images are publicly routable. The production version of this is the same image
+on ECS with RDS and S3 ([REQUIREMENTS, *The stack*](REQUIREMENTS.md#the-stack)).

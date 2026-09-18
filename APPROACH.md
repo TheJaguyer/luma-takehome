@@ -9,46 +9,6 @@ and follow **[INSTALL.md](docs/INSTALL.md)**, Path A (~15 minutes, Docker only).
 
 ## What I built, and why
 
-```
-                 Slack review channel                 The product site
-             (the team, phone or desktop)          (asks for images by SKU)
-                         │                                   │
-                         │ events, taps, file drops          │ lookup: cached 30s
-                         │                                   │ images: cached forever
-   ┌─────────────────────┼───────────────────────────────────┼─────────────────┐
-   │  One VM · one Docker Compose file                       │                 │
-   │                     ▼                                   ▼                 │
-   │   ┌──────────────────────────────────────────────────────────────────┐    │
-   │   │               caddy · TLS and routing (only public ports)        │    │
-   │   └──────┬───────────────────────────────┬───────────────────┬───────┘    │
-   │          │ /slack/*                      │ /products/*       │ /images/*  │
-   │          ▼                               ▼                   │ (approved  │
-   │   ┌─────────────┐                ┌───────────────┐           │  only)     │
-   │   │ bot         │                │ lookup        │           │            │
-   │   │ commands,   │                │ read-only,    │           │            │
-   │   │ buttons,    │                │ never fails   │           │            │
-   │   │ file drops  │                └───────┬───────┘           │            │
-   │   └──────┬──────┘                        │                   ▼            │
-   │          ▼                               ▼             ┌────────────┐     │
-   │   ┌───────────────────────────────────────────────┐    │ garage     │     │
-   │   │ postgres · system of record                   │    │ S3-style   │     │
-   │   └───────────────────────┬───────────────────────┘    │ images     │     │
-   │                           ▼                            └─────▲──────┘     │
-   │   ┌───────────────────────────────────────────────┐          │            │
-   │   │ worker · exactly one                          ├──────────┘            │
-   │   │ imports, drafting, generation, daily post     │                       │
-   │   └───────┬──────────────────┬─────────────────┬──┘                       │
-   └───────────┼──────────────────┼─────────────────┼──────────────────────────┘
-               ▼                  ▼                 ▼
-        Anthropic Claude      Luma uni-1        Slack API
-        drafts shot ideas     image edit        contact sheets, cards, daily post
-```
-
-Slack reaches the bot over HTTPS through Caddy when deployed (locally, over Socket Mode instead).
-The database is the source of truth, the worker does everything that happens without a person,
-and only approved images are publicly routable. The production version of this is the same image
-on ECS with RDS and S3 ([REQUIREMENTS, *The stack*](docs/REQUIREMENTS.md#the-stack)).
-
 Reading the brief, I took this team's real problems to be four: **a new tool to install**, **work
 scattered across too many places** (sheet, Slack, inbox, Drive), **the time it takes**, and **the
 product page drifting out of step with what was approved** (the wrong `IMG_43xx.jpg`, live for
