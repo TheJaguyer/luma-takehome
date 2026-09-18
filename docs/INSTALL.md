@@ -127,8 +127,6 @@ SLACK_APP_TOKEN=xapp-…
 
 Notes:
 
-- The `.env.example` header lists OpenAI, ElevenLabs, Google and AWS keys. **Shutter uses none of
-  them** — that block came with the take-home archive. Leave them as placeholders or delete them.
 - If you have the challenge archive's `.env.local` with the Luma key in it, leave it where it is —
   `compose.yaml` reads both files and `.env.local` wins.
 - Leave `SITE_ADDRESS` and `PUBLIC_BASE_URL` commented out. They default to `http://localhost`.
