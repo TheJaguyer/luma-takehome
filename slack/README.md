@@ -1,6 +1,6 @@
 # The Slack app
 
-For the whole install, start at [`INSTALL.md`](../INSTALL.md) — this file is just the Slack half.
+For the whole install, start at [`INSTALL.md`](../docs/INSTALL.md) — this file is just the Slack half.
 
 | File | What it is |
 |---|---|

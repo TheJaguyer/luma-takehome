@@ -225,7 +225,7 @@ export function registerCommands({ app, db, log, s3, bucket, socketMode, publicB
             `     Storage   ${storageOk ? "✅" : "❌"}`,
             `     Slack     ✅  (${socketMode ? "Socket Mode" : "HTTP"})`,
             `     Base URL  ${urlWrong ? "⚠️" : "✅"}  ${publicBaseUrl}`,
-            urlWrong ? "\n⚠️  I'm deployed but still handing out localhost links. Set `PUBLIC_BASE_URL` to this host and redeploy — see INSTALL.md." : null,
+            urlWrong ? "\n⚠️  I'm deployed but still handing out localhost links. Set `PUBLIC_BASE_URL` to this host and redeploy — see docs/INSTALL.md." : null,
           ]
             .filter((l) => l !== null)
             .join("\n"),

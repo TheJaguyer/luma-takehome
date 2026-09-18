@@ -5,9 +5,49 @@
 A Slack bot belongs to the one workspace it is installed in, and sharing it across organisations
 needs per-workspace OAuth and tenancy that are out of scope here. The quickest way in is to run it
 locally: create the app from [`slack/manifest.yaml`](slack/manifest.yaml) in your own workspace
-and follow **[INSTALL.md](INSTALL.md)**, Path A (~15 minutes, Docker only).
+and follow **[INSTALL.md](docs/INSTALL.md)**, Path A (~15 minutes, Docker only).
 
 ## What I built, and why
+
+```
+                 Slack review channel                 The product site
+             (the team, phone or desktop)          (asks for images by SKU)
+                         │                                   │
+                         │ events, taps, file drops          │ lookup: cached 30s
+                         │                                   │ images: cached forever
+   ┌─────────────────────┼───────────────────────────────────┼─────────────────┐
+   │  One VM · one Docker Compose file                       │                 │
+   │                     ▼                                   ▼                 │
+   │   ┌──────────────────────────────────────────────────────────────────┐    │
+   │   │               caddy · TLS and routing (only public ports)        │    │
+   │   └──────┬───────────────────────────────┬───────────────────┬───────┘    │
+   │          │ /slack/*                      │ /products/*       │ /images/*  │
+   │          ▼                               ▼                   │ (approved  │
+   │   ┌─────────────┐                ┌───────────────┐           │  only)     │
+   │   │ bot         │                │ lookup        │           │            │
+   │   │ commands,   │                │ read-only,    │           │            │
+   │   │ buttons,    │                │ never fails   │           │            │
+   │   │ file drops  │                └───────┬───────┘           │            │
+   │   └──────┬──────┘                        │                   ▼            │
+   │          ▼                               ▼             ┌────────────┐     │
+   │   ┌───────────────────────────────────────────────┐    │ garage     │     │
+   │   │ postgres · system of record                   │    │ S3-style   │     │
+   │   └───────────────────────┬───────────────────────┘    │ images     │     │
+   │                           ▼                            └─────▲──────┘     │
+   │   ┌───────────────────────────────────────────────┐          │            │
+   │   │ worker · exactly one                          ├──────────┘            │
+   │   │ imports, drafting, generation, daily post     │                       │
+   │   └───────┬──────────────────┬─────────────────┬──┘                       │
+   └───────────┼──────────────────┼─────────────────┼──────────────────────────┘
+               ▼                  ▼                 ▼
+        Anthropic Claude      Luma uni-1        Slack API
+        drafts shot ideas     image edit        contact sheets, cards, daily post
+```
+
+Slack reaches the bot over HTTPS through Caddy when deployed (locally, over Socket Mode instead).
+The database is the source of truth, the worker does everything that happens without a person,
+and only approved images are publicly routable. The production version of this is the same image
+on ECS with RDS and S3 ([REQUIREMENTS, *The stack*](docs/REQUIREMENTS.md#the-stack)).
 
 Reading the brief, I took this team's real problems to be four: **a new tool to install**, **work
 scattered across too many places** (sheet, Slack, inbox, Drive), **the time it takes**, and **the
@@ -59,17 +99,17 @@ The product file re-imports as-is:
 ## Key decisions and tradeoffs
 
 My rule was to stay as close as possible to how this team already works, and to respect every
-failure they had already named. I wrote [ASSUMPTIONS.md](ASSUMPTIONS.md) first, then
-[REQUIREMENTS.md](REQUIREMENTS.md), then walked every flow message by message in
-[USER_FLOWS.md](USER_FLOWS.md). By the time I reached the build, few decisions were left open,
+failure they had already named. I wrote [ASSUMPTIONS.md](docs/ASSUMPTIONS.md) first, then
+[REQUIREMENTS.md](docs/REQUIREMENTS.md), then walked every flow message by message in
+[USER_FLOWS.md](docs/USER_FLOWS.md). By the time I reached the build, few decisions were left open,
 because the team's weak points were so plain in the brief.
 
 **The biggest one: no web front end.** Everything happens in Slack, where the team already is. The
 case for the alternative, and why it lost, is the next section.
 
 Every other decision, with what it costs and the signal that would mean it was wrong, is in
-[ASSUMPTIONS.md](ASSUMPTIONS.md) (the team-facing calls, numbered #1–#16) and
-[REQUIREMENTS.md](REQUIREMENTS.md) (each step of their process, the options considered, and the
+[ASSUMPTIONS.md](docs/ASSUMPTIONS.md) (the team-facing calls, numbered #1–#16) and
+[REQUIREMENTS.md](docs/REQUIREMENTS.md) (each step of their process, the options considered, and the
 stack).
 
 ## The road not taken
@@ -92,14 +132,14 @@ has no screen of its own, only a CSV export.
 asked for. But a _read-only_ view, somewhere to look something up when something has gone wrong,
 is a different thing from a place to _do the work_. The signal to build it is a question the CSV
 export cannot answer without a spreadsheet session, such as repeated "who approved this, and why?"
-([REQUIREMENTS](REQUIREMENTS.md#part-4--out-of-scope--future), _Web-based data view_).
+([REQUIREMENTS](docs/REQUIREMENTS.md#part-4--out-of-scope--future), _Web-based data view_).
 
 ## Scope ledger
 
 What is built is the whole path from a CSV to images live on the product page, so the team can
 solve its problem on day one. Everything left out would make the bot more robust and more
 adaptable, but none of it is needed to get a drop shot, approved and published. Full reasoning
-for every item is in [REQUIREMENTS.md](REQUIREMENTS.md), Parts 4 and 5.
+for every item is in [REQUIREMENTS.md](docs/REQUIREMENTS.md), Parts 4 and 5.
 
 **How it was cut.** I priced the day before building. The core path alone filled it, so the
 question was never what to add but what to leave out, and I cut by value, deciding in advance what
@@ -193,8 +233,8 @@ In the order I expect them to bite:
 
 ## How I used the AI
 
-I spent about 90% of the time on the thinking: [ASSUMPTIONS.md](ASSUMPTIONS.md), then
-[REQUIREMENTS.md](REQUIREMENTS.md), then [USER_FLOWS.md](USER_FLOWS.md). The AI brought
+I spent about 90% of the time on the thinking: [ASSUMPTIONS.md](docs/ASSUMPTIONS.md), then
+[REQUIREMENTS.md](docs/REQUIREMENTS.md), then [USER_FLOWS.md](docs/USER_FLOWS.md). The AI brought
 recommendations, one question at a time with one or two options each, and I made every call. Many
 of the best decisions came from reframing the question rather than picking an option.
 
