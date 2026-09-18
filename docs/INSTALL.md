@@ -332,7 +332,8 @@ Drag a CSV into the channel. **Start with the small one:**
 
 | File | Rows | Cost of a full pass |
 |---|---|---|
-| `data/samples/short.csv` | 5 | ~$0.90 |
+| `data/samples/Q3.csv` | 5 | ~$0.90 |
+| `data/samples/Q4.csv` | 5 | **The next drop, after Q3.** Three new products (one with no photo, so it is flagged until one is dropped in the channel), one Q3 product whose price changed (reported, *not applied*), and one with a new holiday shot idea |
 | `data/catalog.csv` | 40 | ~$7 |
 | `data/samples/catalog-edge-cases.csv` | 7 | one of every import problem: a 404 photo URL, a row with no SKU, a duplicated SKU, and an existing SKU whose price changed |
 
@@ -426,7 +427,7 @@ Measured, not estimated:
 | Drafting three ideas for one product | $0.005–0.007, 6–9s (Sonnet 5, prompt cached) |
 | One generated image (Luma `uni-1`) | $0.0434, 62–69s |
 | One round of 4 candidates | ~$0.17, ~72s end to end |
-| `short.csv`, 5 products, one round each | ~$0.90 |
+| `Q3.csv`, 5 products, one round each | ~$0.90 |
 
 The cost of anything that spends money is printed on the button before you press it.
 
