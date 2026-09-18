@@ -72,7 +72,7 @@
 > **No longer blocking.** We proceed on #14a as written: `uni-1` image edit reproduces the
 > product accurately in most generations, so manual review alone is manageable. Systematic
 > image-quality testing moves to Part 4 (next/future) rather than gating the design.
-- [ ] Record observed latency and cost per image for APPROACH.md unit economics — from the
+- [x] Record observed latency and cost per image for APPROACH.md unit economics — from the
   build's own runs, not a separate test pass. **First data point (build step 3, 2026-09-16, one
   round of 4 × `uni-1` edits on HG-002):** each image took **62–69s** from submit to completion,
   running in parallel — slower than the documented 30–60s, so Flow 3's "back in about a minute"
@@ -88,6 +88,21 @@
   Provisioned Throughput or a higher concurrency tier, and `LUMA_MAX_CONCURRENT` is the one
   setting that changes.
   **Drafting (Claude Sonnet 5): $0.005–0.007 and 6–9s per product** with the shared prefix cached.
+  **Closing data point — cost per *approved* image, from a real run** (`/shots export`,
+  2026-09-18, prod): two products reached done, HG-001 and HG-002, at **$0.1806 and $0.1814** all
+  in. Each was one round of four; **four of the eight candidates were approved — a 50% approval
+  rate** — so **$0.3620 ÷ 4 = $0.0905 per approved image**, about **2.1× the $0.0434 list price of
+  one generation**. It decomposes as $0.0868 of generation (two candidates paid for every one
+  kept) plus $0.0037 of drafting, which is a rounding error beside it: **the approval rate is the
+  whole number.** At 75% it would be $0.061; at 25%, $0.177.
+
+  **The honest caveats.** n = 2 products and 8 candidates, both finished in their *first* round —
+  no rejected rounds, no regenerations, and both on straightforward ceramics rather than the hard
+  cases (#14a names smoke glass and multi-colour sets). A product that needs a second round costs
+  **$0.177 per approved image** on its own, so a drop's real figure sits between the two and
+  depends entirely on how often a first round is enough. That is the number to watch after it
+  ships, and the export's Spend and Approved Images columns are how — it is the same calculation,
+  on more rows.
 
 ## Who we're building for
 
@@ -244,7 +259,7 @@ Note: We have no site integration, so "on the product page" can't be verified au
 |---|---|---|
 | "AI just make the shots people put in the sheet" | Steps 1–3 | Sheet ideas import and are expanded into 2–3 concrete options (#9); blank products get three drafted (#3). Nothing generates until an idea is approved (USER_FLOWS Flows 1–2) |
 | "Ellie approves them on her phone somehow" | Step 5 | Slack, one card per product, contact sheet to triage and full size beside the source photo to decide. One tap to reject a round; a sentence required only to spend again (USER_FLOWS Flow 3) |
-| "Don't burn our budget on stuff she'll reject" | Steps 3–4 (gating, previews, QC) | Idea approval before any image (#3); per-product round limits, spend visibility, warning thresholds, spend comparison reports (#13). QC TBD (#14) |
+| "Don't burn our budget on stuff she'll reject" | Steps 3–4 (gating, previews, QC) | Idea approval before any image (#3); per-product round limits, spend visibility, warning thresholds, spend comparison reports (#13). Automated QC is deferred to Part 4 (#14a): the approver's eye is the check, and `[Compare with source]` is what makes it cheap |
 | "See where things stand without having to ask Ellie" | Status surface, see Part 3 | `/shots status` at three zoom levels, **plus the drop reporting itself** — start, daily while open, completion — so she never has to remember to ask. Stuck items are grouped by who they wait on, including the "waiting on nobody" case that appears in no queue (USER_FLOWS Flow 4) |
 | "40-product drop… launch with styled shots" | CSV import + idea generation | Drop the CSV in Slack; it becomes a named drop with a campaign theme asked once, ~37 drafted ideas, then candidates arriving about a minute after each idea approval. Progress and spend per drop via `/shots status <drop>` (USER_FLOWS Flows 1–3, #2b) |
 
@@ -395,19 +410,37 @@ design, and each carries the signal that should pull it forward.
 | Item | Flow / entry | Why it is not in the day | Trigger to build it |
 |---|---|---|---|
 | **Import change-review** — pending detail changes with bulk accept, photo changes individually | 1, #12 | Next month's drop is *new* products, which the spine already handles. The photo-change path also drags in source-photo versioning from Flow 6, so it is not the 1.25h it looks like | **Anyone editing an existing row in the sheet and re-exporting.** Until then a re-import creates new SKUs and new ideas and leaves existing rows alone — which the import summary must say out loud, rather than leaving it to be discovered |
-| **Photographer upload** | 5, #2 | An escape hatch from the AI path the product is about, and the brief's photographer is the bottleneck this replaces | A human shot actually needing to enter review — a freelancer engagement continuing alongside the tool |
-| **Replace source photo** | 6, #11 | Shares its gesture with Flow 5, so the two are cheaper together than apart — which is also why neither is half-built | **A product whose photo is bad or missing.** The `needs a source photo` flag ships in v1, so the demand for this is visible from day one; the flag is a to-do list with no button yet, which is an honest gap rather than a hidden one |
+| **`[Make primary]`** — promote any approved image ahead of the rest in its theme's set (Flow 7, decision 7.1) | 7, #4 | Display order is approval order, and the first approved image is primary — which is the right default, because the approver picks the best one first. Promotion only matters once someone disagrees with an order they themselves created. It is a publishing action, so it also needs the live-change notice and revert, which is most of its half-hour | **Anyone asking which image the product page leads with**, or reverting a primary to re-approve it in a different order — the workaround that shows the button is missing |
 | **Multi-product grouping** | 2, 3, #10 | By its own conclusion it "helps the site more than the queue" — featured SKUs are not even counted toward done | Someone asking for a styled set, or `image_ref` fidelity testing landing (Part 4) |
 | **`/shots approvers`, and the channel-move proposal** | 0, #1, #2a | Setup names an approver, which covers the common case. Changing the set matters on week four, not hour one | The approver being away, or a second channel invite happening |
 | **Archive / unarchive actions** | 1, 2, #6, #8 | Skip covers "not now" in review; archive matters at 300 SKUs, not 40 | The queue carrying products nobody intends to shoot |
 | **Budget warning thresholds** | #13 | Spend is *visible* in v1 (per generation, per drop, in status). Thresholds add alerting to a number already in front of everyone | Spend surprising someone — which the spend figures in status will show before a threshold would |
 | **Spend comparisons week-over-week / month-over-month** | 4, #13 | At a handful of drops a year, a calendar comparison carries less signal than the per-drop breakdown, which v1 has | A second drop completing, so there is something to compare against |
 
-**If the day goes better than priced** — unlikely, now that the day is knowingly long — the order to
-pull from is: **replace source photo** (Flow 6)
-first — it is the only fix for the `needs a source photo` flag v1 ships — then **photographer
-upload** (Flow 5, which shares its gesture), then **import change-review**, then **`/shots
-approvers`**.
+**If the day goes better than priced** — the order to pull from was: **replace source photo**
+(Flow 6) first — the only fix for the `needs a source photo` flag v1 ships — then **photographer
+upload** (Flow 5, which shares its gesture), then **import change-review**, then
+**`/shots approvers`**.
+
+> **What happened:** the day ran long and then kept going. The first two were pulled in, in that
+> order and for those reasons; the last two were not, and stay in the table above with their
+> triggers. See *Built after the plan*, below.
+
+### Built after the plan
+
+The day ran long and kept going. These were not in the priced scope above; each is here because
+something in the build asked for it.
+
+| Item | Flow | Why it came in |
+|---|---|---|
+| **Flow 6 — replace source photo** | 6, #11 | v1 shipped the `needs a source photo` flag with no button anywhere. It was the only dangling affordance in the product, and the stuck list had nowhere to send those rows. Max rounds now counts attempts against the *current* photo, so a new source is a fresh start rather than a dead end |
+| **Flow 5 — photographer upload** | 5, #2 | The fork is the expensive part, not either branch: once the bot has to ask what a dropped photo means, answering "a finished shot" costs little more. Restores the escape hatch for when AI cannot do a shot |
+| **Priority setter — `/shots priority HG-002`** | 2, #7 | ⭐ ordered the idea queue, drafting and the stuck list, and nothing could set it. Read in six places, written in none — a branch that could not execute |
+| **`/shots endpoints`** | 7 | Setup posts the integration contract once, on install day. The web developer arrives weeks later, when that message is far up the scroll — so their first move was to ask someone, which is the thing this design keeps trying not to require |
+| **`--reset-factory`** | 0 | `--reset-catalog` deliberately keeps the install row, which made Flow 0 demonstrable exactly once per workspace — and setup is two of the three questions this product asks anyone |
+| **`deploy/slack-mode.sh`** | — | Socket Mode is an app-level toggle, so one Slack app cannot serve a local and a deployed bot at once. Nothing fails when it is wrong; the deployed box just sits there receiving nothing, which cost an hour to see once |
+| **`INSTALL.md`** | — | The brief asks for a way in. Both paths, end to end, written to be followed literally |
+| **Catalogue reset, `/shots retry`, `/shots daily`, `/shots themes`** | 1, 3, 4, 7 | Demo and operations affordances the build itself kept needing: a way to start over, a way to re-queue a short round, a way to see the 9am post inside an eight-minute video, and a way to read the themes the lookup serves |
 
 ### Out
 

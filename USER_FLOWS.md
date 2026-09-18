@@ -36,19 +36,20 @@
 | 6 | Replacing a product's source photo | Anyone | **Settled** |
 | 7 | The site consuming approved images | The web developer | **Settled** |
 
-> **What of this gets built in the ~1 day** (see REQUIREMENTS *Part 5 — Build scope*). Every flow
-> here stays settled; the day is what is short, not the design.
+> **What got built** (see REQUIREMENTS *Part 5 — Build scope*, and *Built after the plan*). Every
+> flow here stays settled; the day was what was short, not the design — and the day then ran long
+> enough to take two of the deferred flows back.
 >
-> | Flow | In the ~1-day build |
+> | Flow | Built |
 > |---|---|
-> | 0 Setup | **Partly** — invite, name the approver, house style, post the lookup URL. `/shots approvers` and the channel move are next |
+> | 0 Setup | **Partly** — invite, name the approver, house style, post the lookup URL (and `/shots endpoints` repeats it on demand). `/shots approvers` and the channel move are next |
 > | 1 Import | **Partly** — new SKUs, new ideas, drop, summary, idempotent re-import, needs-a-photo flag. Change-review is next, and the summary must say so |
-> | 2 Idea review | **Yes** — minus multi-product grouping (Step 6) and archive (Skip stays) |
-> | 3 Generation and approval | **Yes** — including force-approve. Photographer uploads (Step 7) are next |
+> | 2 Idea review | **Yes**, including the priority setter — minus multi-product grouping (Step 6) and archive (Skip stays) |
+> | 3 Generation and approval | **Yes** — including force-approve, and photographer uploads (Step 7) |
 > | 4 Status and nudges | **Yes** — three zoom levels, stuck list, nudges, drop self-reporting. Thresholds and period-over-period comparisons are next |
-> | 5 Photographer's shot | **Next** |
-> | 6 Replace source photo | **Next** — first in line if the day runs ahead, because v1 ships the flag that only this flow can clear |
-> | 7 The site consuming images | **Yes** — including themes |
+> | 5 Photographer's shot | **Yes** — the upload fork, the AI question, review on equal terms with a generated candidate |
+> | 6 Replace source photo | **Yes** — it was first in line when the day ran ahead, because v1 ships the flag that only this flow can clear. The keep/start-over question and the non-square warning are in; the *retire the older images* prompt (Step 4) is not |
+> | 7 The site consuming images | **Yes** — including themes. `[Make primary]` (Step 5) is next |
 
 
 ---
@@ -161,6 +162,13 @@ disappear because the question moved; it just stops being install's problem. So 
 catalog exists, `/shots style` offers **"suggest one from your existing shot ideas"**, which
 is #3b's seeding preserved as an opt-in action rather than an install-time dependency. A
 team that skipped, or wrote something thin, gets the derived version whenever they want it.
+
+> **[not built — deferred]** `/shots style` opens the editor with whatever is set; the suggestion
+> button is not there. The reason it slipped is the reason it was moved here in the first place:
+> it is the *nice* half of #3b, not the load-bearing half. The team answers the style question at
+> setup, which is where the answer actually changes what gets drafted. **Trigger:** a house style
+> that was skipped or written thin — visible without asking, because `houseStyleSkipped` is a
+> column and every idea records the `houseStyleUsed` it drafted against.
 
 > **Contradicts ASSUMPTIONS #3b**, which says install shows a *seeded* blurb "rather than
 > asked for cold." #3b is not satisfiable as written — its seed data arrives by CSV, after
@@ -1332,6 +1340,12 @@ why, not merely that.
   consistent with #2a, and the fastest way for an approver to object.
 - `[Nudge an approver instead]` is offered first-class, because most of the time the honest
   answer is "this could wait an hour."
+  - **[not built — deferred]** The modal ships with *Approve anyway* and *Cancel* only. Cancel
+    already covers "this could wait": what the button adds is the nudge being *sent* rather than
+    the person being left to go and ask. The design stands; it is deferred to the same trigger as
+    everything else about the approver set — **forced approvals climbing**, which is the signal
+    named below and which the event log records (`idea.approved` / `image.approved` carry
+    `forced` and the reason).
 
 **The cost, stated plainly.** This is friction at 9pm the night before a launch, which is
 precisely the scenario force-approve exists for. That is the trade: the launch is delayed by the
@@ -1777,7 +1791,9 @@ depends entirely on **which kind of photo it is**, and the two meanings are near
 Getting this wrong is expensive in both directions: a white-background product photo approved as
 a candidate puts a catalogue shot on the product page, and a finished lifestyle shot used as a
 generation source produces scenes built on top of a scene. **So the fork is explicit, not
-inferred** (OPEN 5.1).
+inferred** (~~OPEN 5.1~~ — **settled in the build:** the bot replies with the two options written as
+what each one *does next*, cost included, and each opens a form that also asks the product and the
+AI question).
 
 **Who may upload: anyone.** Uploading is an *input*, like importing a CSV — not a decision.
 Nothing goes live because it was uploaded; a finished shot still has to be approved, and a source
@@ -2229,6 +2245,10 @@ right most of the time, correctable in place when it is not.
 - **`[Make primary]`** sits on any approved image from the product's status card (Flow 4,
   Step 4). One tap, and it moves that image to the front of *its own theme's* set — promoting a
   holiday image never disturbs the defaults.
+  - **[not built — deferred]** The half of this decision that ships is the default: approval order
+    is display order and the first approved leads, which is the part the site depends on. The
+    button is in REQUIREMENTS Part 5 *Next* with its trigger. `Image.sortKey` is a float precisely
+    so a promotion is one write rather than a reordering, so the model is already waiting for it.
 
 ```
      🖼  HG-002 · 3 approved
