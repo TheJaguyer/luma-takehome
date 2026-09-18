@@ -139,6 +139,10 @@ From REQUIREMENTS Part 5 *Next* (with their triggers) and Part 4. In Part 5's ow
 
 **Install instructions — two audiences**
 
+> **1 is done:** `INSTALL.md` covers both paths (local Socket Mode, own server with HTTPS) end to
+> end, through to an approved image on a public URL. **2 was decided:** no distributed OAuth —
+> invite reviewers into the workspace, or send them `INSTALL.md`. See its closing section.
+
 1. **Deploying this application** (an operator or a reviewer running their own copy). Material exists
    across `.env.example`, `slack/manifest.yaml`, `deploy/*.sh` and REQUIREMENTS; needs one ordered
    guide: prerequisites (Docker, pnpm optional), create the Slack app from the manifest (dev: Socket

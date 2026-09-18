@@ -1,5 +1,7 @@
 # The Slack app
 
+For the whole install, start at [`INSTALL.md`](../INSTALL.md) — this file is just the Slack half.
+
 | File | What it is |
 |---|---|
 | `manifest.yaml` | The whole app, except the icon: scopes, events, the `/shots` command, Socket Mode on for local |
