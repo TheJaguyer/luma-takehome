@@ -146,7 +146,7 @@ From REQUIREMENTS Part 5 *Next* (with their triggers) and Part 4. In Part 5's ow
 1. **Deploying this application** (an operator or a reviewer running their own copy). Material exists
    across `.env.example`, `slack/manifest.yaml`, `deploy/*.sh` and REQUIREMENTS; needs one ordered
    guide: prerequisites (Docker, pnpm optional), create the Slack app from the manifest (dev: Socket
-   Mode; prod: `deploy/slack-manifest.sh <host>`), keys (Anthropic, Luma, Slack), `deploy/local.sh`,
+   Mode; prod: `deploy/slack-mode.sh prod <host>`), keys (Anthropic, Luma, Slack), `deploy/local.sh`,
    EC2 (`deploy/ec2/user-data.sh`, security group, Elastic IP, DNS, `make-prod-env.sh`, `push.sh`),
    `/invite @shutter`, verify with `/shots health`. Decide: README section vs `INSTALL.md`.
 2. **Interviewers trying the bot in their own Slack** — **an open decision, and a real constraint:**

@@ -541,7 +541,7 @@ per-target inputs are a `.env` and a DNS name for Caddy to get a certificate for
   was the first choice (flat price, simpler console) but was not available on the account.
   First boot is [deploy/ec2/user-data.sh](deploy/ec2/user-data.sh); deploys are
   [deploy/push.sh](deploy/push.sh) (rsync, then `compose up --build` on the box), with a separate
-  prod Slack app in HTTP mode from [deploy/slack-manifest.sh](deploy/slack-manifest.sh).
+  prod Slack app in HTTP mode from [deploy/slack-mode.sh](deploy/slack-mode.sh).
 - **Local** — the same Compose file on a laptop, with no public URL. **Slack reaches the `bot` over
   Socket Mode locally and over HTTP (through Caddy) when deployed.** Bolt picks the receiver from
   configuration — `SLACK_APP_TOKEN` present means Socket Mode — so this is a setting, not a second

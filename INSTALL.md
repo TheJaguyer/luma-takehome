@@ -220,14 +220,29 @@ Path B needs its **own** Slack app. Socket Mode and HTTP mode are per-app settin
 keep the local one working.
 
 ```bash
-deploy/slack-manifest.sh shots.example.com
+deploy/slack-mode.sh prod shots.example.com
 ```
 
 This prints `slack/manifest.yaml` with Socket Mode off and all three request URLs pointed at your
 host. Create a second app from it exactly as in step 3, install it, and collect **two** values —
 bot token and signing secret. **No app token:** its absence is what selects HTTP mode.
 
-The two apps can live in the same workspace. Different icons make them easy to tell apart.
+The two apps can live in the same workspace — though Slack will not let both own `/shots`, so the
+second one needs a different command name. Different icons make them easy to tell apart.
+
+> **If you reuse one app for both instead of creating a second**, they cannot both work. Socket Mode
+> is an app-level toggle: with it on, Slack delivers everything over the WebSocket the local bot
+> holds and **never calls the request URLs** — so the deployed box sits there healthy, serving
+> images, receiving no events. Switch modes with:
+>
+> ```bash
+> deploy/slack-mode.sh status          # which workspace, which mode, what is running
+> deploy/slack-mode.sh prod            # print the manifest that points Slack at the server
+> deploy/slack-mode.sh local           # …and the one that points it back at your machine
+> ```
+>
+> Paste the output over the app's manifest at **api.slack.com/apps → App Manifest**, reinstall if
+> asked, and stop whichever stack is not the one you want answering.
 
 ## B4. Generate the production environment
 
@@ -433,7 +448,8 @@ The cost of anything that spends money is printed on the button before you press
 | Images 404 at `/images/...` | `storage-init` did not finish | `docker compose logs storage-init` |
 | Port 80 in use | Something else has it | Stop it, or change the `caddy` port mapping in `compose.yaml` |
 | **Path B:** no certificate | DNS not resolving when Caddy first asked | Fix DNS, then `docker compose restart caddy`. `docker compose logs caddy` shows the ACME attempts |
-| **Path B:** `/shots` times out | Request URL wrong, or the app still in Socket Mode | The prod app needs all three URLs from `deploy/slack-manifest.sh` and `socket_mode_enabled: false` |
+| The **local** bot answers while the deployed one gets nothing | One Slack app with Socket Mode on: the socket wins and the request URLs are never called | `deploy/slack-mode.sh status`, then `prod` to switch |
+| **Path B:** `/shots` times out | Request URL wrong, or the app still in Socket Mode | The prod app needs all three URLs and `socket_mode_enabled: false` — paste `deploy/slack-mode.sh prod <host>` |
 | **Path B:** the product typeahead in the photo-upload form is empty | The options URL is not set | HTTP mode needs `message_menu_options_url` as well as `request_url` — the generated manifest sets it |
 | Build OOMs on the server | Under 4 GB and no swap | `deploy/ec2/user-data.sh` adds 2 GB. Add it by hand if you skipped user data |
 
@@ -483,7 +499,9 @@ startup with the name of the variable, not later at a request.
 deploy/local.sh                          # build and start locally
 deploy/local.sh --reset-catalog          # …and clear the catalogue first
 deploy/local.sh --reset-factory          # …and clear setup too
-deploy/slack-manifest.sh <host>          # print the manifest in HTTP mode for <host>
+deploy/slack-mode.sh status              # which workspace, which mode, what is running
+deploy/slack-mode.sh local               # print the manifest that points Slack at your machine
+deploy/slack-mode.sh prod [host]         # …and the one that points it at the server
 deploy/make-prod-env.sh <host>           # write .env.production with fresh secrets
 deploy/push.sh ubuntu@<ip> [--reset-*]   # rsync, build and start on the server
 

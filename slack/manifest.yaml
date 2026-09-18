@@ -1,7 +1,7 @@
 # Create the app at https://api.slack.com/apps → "From a manifest" → paste this.
 # Local: Socket Mode on (as below). Deployed: set socket_mode_enabled: false and uncomment the
 # request URLs, pointing them at https://<your host>/slack/events — or run
-# `deploy/slack-manifest.sh <host>`, which does both.
+# `deploy/slack-mode.sh prod <host>`, which does both.
 #
 # THE APP ICON IS NOT IN THIS FILE. A manifest cannot set it. After creating the app:
 #   api.slack.com/apps → <the app> → Basic Information → Display Information → App icon
