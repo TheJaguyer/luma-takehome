@@ -15,20 +15,20 @@ import { themesCommand } from "./themes.js";
 
 type Deps = { app: App; db: Db; log: Logger; s3: S3Client; bucket: string; socketMode: boolean; publicBaseUrl: string };
 
-const HELP = [
+export const HELP = [
   "*Shutter* turns shot ideas into approved product images.",
   "• Drop a CSV export from the catalogue sheet in this channel to import products.",
-  "• `/shots style` — see or change the house style",
+  "• `/shots status` — where everything stands · `/shots status q4-drop` — one drop · `/shots HG-002` — one product",
+  "• `/shots ideas` — what's waiting for a decision, with links (and retry any failed drafts)",
   "• `/shots endpoints` — the image URLs for the site, and every theme it can ask for",
-  "• `/shots themes` — the themes the site can ask for, and each one's look",
-  "• `/shots setup` — start setup here, if I was invited before I could hear it",
   "• `/shots export` — post products.csv (status and image links) and the event log here",
+  "• `/shots priority HG-002` — put a product first in the queue (`off` to clear it)",
+  "• `/shots themes` — the themes the site can ask for, and each one's look",
+  "• `/shots style` — see or change the house style",
+  "• `/shots daily` — post today's drop report and nudges now (they post at 9am on their own)",
   "• `/shots retry` — retry every round that came back missing candidates",
   "• `/shots health` — check that everything I depend on is answering",
-  "• `/shots ideas` — what's waiting for a decision, with links (and retry any failed drafts)",
-  "• `/shots priority HG-002` — put a product first in the queue (`off` to clear it)",
-  "• `/shots status` — where everything stands · `/shots status q4-drop` — one drop · `/shots HG-002` — one product",
-  "• `/shots daily` — post today's drop report and nudges now (they post at 9am on their own)",
+  "• `/shots setup` — start setup here, if I was invited before I could hear it",
 ].join("\n");
 
 export function registerCommands({ app, db, log, s3, bucket, socketMode, publicBaseUrl }: Deps) {

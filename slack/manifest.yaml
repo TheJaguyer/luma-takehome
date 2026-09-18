@@ -1,6 +1,12 @@
 # Create the app at https://api.slack.com/apps → "From a manifest" → paste this.
 # Local: Socket Mode on (as below). Deployed: set socket_mode_enabled: false and uncomment the
-# request URLs, pointing them at https://<your host>/slack/events.
+# request URLs, pointing them at https://<your host>/slack/events — or run
+# `deploy/slack-manifest.sh <host>`, which does both.
+#
+# THE APP ICON IS NOT IN THIS FILE. A manifest cannot set it. After creating the app:
+#   api.slack.com/apps → <the app> → Basic Information → Display Information → App icon
+# Square, PNG or JPG, 512–2000 px. Keep the source in slack/icon/ (see its README) and set it on
+# BOTH apps — dev and prod are separate Slack apps and do not share display information.
 display_information:
   name: Shutter
   description: Turns shot ideas into approved, published product images.
@@ -11,8 +17,10 @@ features:
     always_online: true
   slash_commands:
     - command: /shots
-      description: Status, ideas, and settings for styled product shots
-      usage_hint: "status [drop] | HG-002 | ideas | style | help"
+      description: Shot ideas, image approvals, and where everything stands
+      # Every verb src/bot/commands.ts routes, most-used first. `/shots help` is the canonical
+      # list in the product; src/bot/commands.test.ts fails if the two ever disagree.
+      usage_hint: "status | HG-002 | ideas | endpoints | export | priority | themes | style | daily | retry | health | setup | help"
       should_escape: false
       # url: https://<your host>/slack/events
 oauth_config:
